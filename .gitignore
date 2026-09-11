@@ -1,0 +1,35 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# --- Refuerzos ---
+# IDE (toda la carpeta, no solo archivos sueltos)
+/.idea
+# Sesiones locales de Kotlin
+.kotlin/
+# Build de módulos
+/app/build
+# Artefactos y llaves de firma (nunca al repo)
+*.apk
+*.aab
+*.ap_
+*.keystore
+*.jks
+
+# --- Material de planificación / prueba técnica (NO forma parte del entregable) ---
+/FrameGate_Checklist_Auditoria.md
+/FrameGate_Explicacion_Proyecto.md
+/FrameGate_Plan_Maestro.md
+*.pdf
