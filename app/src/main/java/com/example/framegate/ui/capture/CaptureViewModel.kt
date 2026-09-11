@@ -12,6 +12,7 @@ import com.example.framegate.domain.model.NormalizedRoi
 import com.example.framegate.domain.model.BufferRect
 import com.example.framegate.domain.model.StepType
 import com.example.framegate.domain.model.Thresholds
+import com.example.framegate.di.AppGraph
 import com.example.framegate.domain.queue.PersistentQueueStore
 import com.example.framegate.domain.queue.QueueItem
 import com.example.framegate.domain.queue.SimulatedUploadTransport
@@ -27,7 +28,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class CaptureViewModel(
-    private val queueStore: PersistentQueueStore = PersistentQueueStore,
+    private val queueStore: PersistentQueueStore = AppGraph.queueStore,
     private val uploadTransport: SimulatedUploadTransport = SimulatedUploadTransport()
 ) : ViewModel(){
     private val _uiState = MutableStateFlow(CaptureUiState())

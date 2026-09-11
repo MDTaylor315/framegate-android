@@ -1,13 +1,11 @@
 package com.example.framegate.domain.queue
 
-import com.example.framegate.domain.model.UploadResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.Queue
 import java.util.concurrent.ConcurrentHashMap
 
-object PersistentQueueStore {
+class PersistentQueueStore {
     private val itemsMap = ConcurrentHashMap<String, QueueItem>()
 
     private val _itemsFlow = MutableStateFlow<List<QueueItem>>(emptyList())

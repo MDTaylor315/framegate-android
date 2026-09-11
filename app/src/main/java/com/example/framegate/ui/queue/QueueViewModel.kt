@@ -2,6 +2,7 @@ package com.example.framegate.ui.queue
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.framegate.di.AppGraph
 import com.example.framegate.domain.model.Metrics
 import com.example.framegate.domain.queue.PersistentQueueStore
 import com.example.framegate.domain.queue.QueueItem
@@ -12,12 +13,11 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 class QueueViewModel(
-    private val queueStore: PersistentQueueStore = PersistentQueueStore,
+    private val queueStore: PersistentQueueStore = AppGraph.queueStore,
     private val uploadTransport: SimulatedUploadTransport = SimulatedUploadTransport()
 ) : ViewModel(){
 
