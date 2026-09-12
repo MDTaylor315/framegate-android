@@ -76,6 +76,21 @@ class MetricsAnalyzerTest {
     }
 
     @Test
+    fun `con pixelStride 2 lee solo los bytes de luma, ignorando los intercalados`() {
+        // Fila entrelazada: luma=100 en posiciones pares, basura=250 en impares.
+        val w = 4
+        val h = 1
+        val buffer = ByteArray(w * 2) { i -> if (i % 2 == 0) 100.toByte() else 250.toByte() }
+        val roi = BufferRect(0, 0, w, h)
+
+        // rowStride = w*2 (la fila entrelazada), pixelStride = 2.
+        val metrics = MetricsAnalyzer.analyze(buffer, rowStride = w * 2, bufferRect = roi, pixelStride = 2)
+
+        // Debe leer solo los 100 (luma), no los 250 (intercalados).
+        assertEquals(100f, metrics.meanLuma, 0.5f)
+    }
+
+    @Test
     fun `buffer vacio no crashea y retorna ceros`() {
         val metrics = MetricsAnalyzer.analyze(ByteArray(0), width, roi)
 

@@ -22,11 +22,12 @@ object MetricsAnalyzer {
         yBuffer: ByteArray,
         rowStride: Int,
         bufferRect: BufferRect,
+        pixelStride: Int = 1,
         previousBuffer: ByteArray? = null,
     ): Metrics {
-        if (!isUsable(yBuffer, rowStride, bufferRect)) return EMPTY
+        if (!isUsable(yBuffer, rowStride, bufferRect) || pixelStride < 1) return EMPTY
 
-        val frame = Frame(yBuffer, previousBuffer, rowStride, bufferRect)
+        val frame = Frame(yBuffer, previousBuffer, rowStride, pixelStride, bufferRect)
         val acc = Accumulator()
         var y = bufferRect.top
         while (y < bufferRect.bottom) {
@@ -43,11 +44,12 @@ object MetricsAnalyzer {
         val rowOffset = y * frame.rowStride
         var x = frame.rect.left
         while (x < frame.rect.right) {
-            val index = rowOffset + x
+            // El byte del píxel x respeta el pixelStride (puede no estar pegado al vecino).
+            val index = rowOffset + x * frame.pixelStride
             if (index in frame.y.indices) {
                 val luma = frame.y[index].toInt() and 0xFF
                 acc.addLuma(luma)
-                acc.addFocus(luma, neighbourLuma(frame.y, index, x, frame.rect))
+                acc.addFocus(luma, neighbourLuma(frame, index, x))
                 acc.addMotion(luma, previousLuma(frame.previous, index))
             }
             x += SAMPLE_STEP
@@ -59,15 +61,16 @@ object MetricsAnalyzer {
         val y: ByteArray,
         val previous: ByteArray?,
         val rowStride: Int,
+        val pixelStride: Int,
         val rect: BufferRect,
     )
 
-    // Vecino a la derecha (a distancia de muestreo) para la energía de gradiente.
-    private fun neighbourLuma(yBuffer: ByteArray, index: Int, x: Int, rect: BufferRect): Int? {
-        val rightIndex = index + SAMPLE_STEP
-        val insideRoi = x + SAMPLE_STEP < rect.right
-        return if (insideRoi && rightIndex in yBuffer.indices) {
-            yBuffer[rightIndex].toInt() and 0xFF
+    // Vecino a la derecha (a SAMPLE_STEP columnas) para la energía de gradiente.
+    private fun neighbourLuma(frame: Frame, index: Int, x: Int): Int? {
+        val rightIndex = index + SAMPLE_STEP * frame.pixelStride
+        val insideRoi = x + SAMPLE_STEP < frame.rect.right
+        return if (insideRoi && rightIndex in frame.y.indices) {
+            frame.y[rightIndex].toInt() and 0xFF
         } else {
             null
         }

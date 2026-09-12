@@ -139,7 +139,7 @@ class CaptureViewModel(
         val roi = BufferRect(0, 0, frame.width, frame.height)
 
         val startNs = System.nanoTime()
-        val metrics = MetricsAnalyzer.analyze(frame.yBuffer, frame.rowStride, roi)
+        val metrics = MetricsAnalyzer.analyze(frame.yBuffer, frame.rowStride, roi, frame.pixelStride)
         val elapsedMs = (System.nanoTime() - startNs) / NANOS_PER_MILLI
 
         // Si analizar tardó más que el intervalo entre frames, se habría perdido uno.
