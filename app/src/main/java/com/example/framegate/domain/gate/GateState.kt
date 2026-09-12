@@ -27,6 +27,8 @@ data class GateState(
     val phase: GatePhase = GatePhase.Blocked(emptySet()),
     val stableFrames: Int = 0,
     val stepIndex: Int = 0,
+    // Pico de foco visto; sirve de referencia para evaluar el foco como ratio.
+    val focusBaseline: Float = 0f,
 )
 
 /** Verdict por medición: qué pasó y qué falló en un frame. */

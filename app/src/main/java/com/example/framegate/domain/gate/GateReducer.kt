@@ -10,8 +10,12 @@ import com.example.framegate.domain.model.Thresholds
  */
 object GateReducer {
 
-    fun evaluate(metrics: Metrics, thresholds: Thresholds): Verdicts = Verdicts(
-        focusOk = metrics.focus >= thresholds.minFocus,
+    /**
+     * El foco se evalúa como ratio contra el [focusBaseline] (pico visto), no
+     * como valor absoluto: exige al menos focusRatio del mejor foco de la escena.
+     */
+    fun evaluate(metrics: Metrics, thresholds: Thresholds, focusBaseline: Float): Verdicts = Verdicts(
+        focusOk = metrics.focus >= focusBaseline * thresholds.focusRatio,
         brightnessOk = metrics.meanLuma >= thresholds.minBrightness,
         motionOk = metrics.motion <= thresholds.maxMotion,
     )
@@ -24,12 +28,15 @@ object GateReducer {
             step == null -> state.copy(phase = GatePhase.Complete)
             terminal -> state
             else -> {
-                val verdicts = evaluate(metrics, step.thresholds)
+                // El baseline se auto-calibra con el pico de foco visto.
+                val baseline = maxOf(state.focusBaseline, metrics.focus)
+                val verdicts = evaluate(metrics, step.thresholds, baseline)
+                val withBaseline = state.copy(focusBaseline = baseline)
                 if (verdicts.allPass) {
-                    advanceHold(state, step.requiredHoldFrames)
+                    advanceHold(withBaseline, step.requiredHoldFrames)
                 } else {
                     // Frame malo: resetea el contador y reporta qué mediciones fallan.
-                    state.copy(phase = GatePhase.Blocked(verdicts.failing), stableFrames = 0)
+                    withBaseline.copy(phase = GatePhase.Blocked(verdicts.failing), stableFrames = 0)
                 }
             }
         }

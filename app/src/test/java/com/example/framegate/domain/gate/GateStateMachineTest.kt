@@ -40,10 +40,19 @@ class GateStateMachineTest {
     }
 
     @Test
-    fun `un frame borroso bloquea reportando FOCUS`() {
-        val state = GateReducer.reduce(GateState(), blurry(), plan)
+    fun `un frame borroso respecto al baseline bloquea reportando FOCUS`() {
+        // Primero un frame nítido fija el baseline alto; luego el borroso cae bajo el ratio.
+        var state = GateReducer.reduce(GateState(), good(), plan)  // baseline = 100
+        state = GateReducer.reduce(state, blurry(), plan)          // 1 < 100*0.6 -> falla foco
         assertTrue(state.phase is GatePhase.Blocked)
         assertEquals(setOf(Measurement.FOCUS), (state.phase as GatePhase.Blocked).failing)
+    }
+
+    @Test
+    fun `el primer frame no puede estar borroso porque es su propio baseline`() {
+        // Sin referencia previa, el foco se compara consigo mismo y pasa.
+        val state = GateReducer.reduce(GateState(), blurry(), plan)
+        assertEquals(GatePhase.Holding(1, 3), state.phase)
     }
 
     @Test
