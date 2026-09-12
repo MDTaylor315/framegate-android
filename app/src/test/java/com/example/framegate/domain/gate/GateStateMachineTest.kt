@@ -39,7 +39,7 @@ class GateStateMachineTest {
 
     @Test
     fun `en estado Idle el obturador siempre permanece cerrado`() {
-        val validMetrics = Metrics(meanLuma = 100f, stdDev = 10f, rms = 100f)
+        val validMetrics = Metrics(focus = 50f, meanLuma = 100f, clippedFraction = 0f, motion = 0f)
         val result = gateStateMachine.evaluate(validMetrics, mockPlan)
 
         assertFalse(result.isGateOpen)
@@ -51,7 +51,7 @@ class GateStateMachineTest {
         gateStateMachine.arm()
 
         // Brillo de 30f (menor al mínimo de 50.0)
-        val lowLumaMetrics = Metrics(meanLuma = 30f, stdDev = 5f, rms = 30f)
+        val lowLumaMetrics = Metrics(focus = 50f, meanLuma = 30f, clippedFraction = 0f, motion = 0f)
         val result = gateStateMachine.evaluate(lowLumaMetrics, mockPlan)
 
         assertFalse(result.isGateOpen)
@@ -61,7 +61,7 @@ class GateStateMachineTest {
     @Test
     fun `secuencia de luz constante logra la apertura del obturador y completado`() {
         gateStateMachine.arm()
-        val validMetrics = Metrics(meanLuma = 80f, stdDev = 15f, rms = 80f)
+        val validMetrics = Metrics(focus = 50f, meanLuma = 80f, clippedFraction = 0f, motion = 0f)
 
         // Frame 1: Luz válida -> Entra a WaitingForStability (1 de 2)
         val result1 = gateStateMachine.evaluate(validMetrics, mockPlan)
@@ -89,8 +89,8 @@ class GateStateMachineTest {
     @Test
     fun `caida de luz durante la estabilizacion reinicia el contador`() {
         gateStateMachine.arm()
-        val validMetrics = Metrics(meanLuma = 80f, stdDev = 15f, rms = 80f)
-        val lowMetrics = Metrics(meanLuma = 20f, stdDev = 5f, rms = 20f)
+        val validMetrics = Metrics(focus = 50f, meanLuma = 80f, clippedFraction = 0f, motion = 0f)
+        val lowMetrics = Metrics(focus = 50f, meanLuma = 20f, clippedFraction = 0f, motion = 0f)
 
         // Frame 1: Luz buena -> (1/2)
         gateStateMachine.evaluate(validMetrics, mockPlan)

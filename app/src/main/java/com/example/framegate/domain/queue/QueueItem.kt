@@ -46,12 +46,13 @@ data class SerializableRoi(
 /** Métricas serializables para el journal y el manifest. */
 @Serializable
 data class SerializableMetrics(
+    val focus: Float,
     val meanLuma: Float,
-    val stdDev: Float,
-    val rms: Float,
+    val clippedFraction: Float,
+    val motion: Float,
 ) {
     companion object {
         fun from(metrics: Metrics): SerializableMetrics =
-            SerializableMetrics(metrics.meanLuma, metrics.stdDev, metrics.rms)
+            SerializableMetrics(metrics.focus, metrics.meanLuma, metrics.clippedFraction, metrics.motion)
     }
 }

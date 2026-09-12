@@ -39,9 +39,10 @@ object ManifestBuilder {
             put("height", round3(item.roi.height))
         })
         put("measurements", buildJsonObject {
+            put("focus", round3(item.metrics.focus))
             put("mean_luma", round3(item.metrics.meanLuma))
-            put("std_dev", round3(item.metrics.stdDev))
-            put("rms", round3(item.metrics.rms))
+            put("clipped_fraction", round3(item.metrics.clippedFraction))
+            put("motion", round3(item.metrics.motion))
         })
     }
 

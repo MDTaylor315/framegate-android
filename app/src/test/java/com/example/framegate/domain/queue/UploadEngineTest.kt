@@ -31,7 +31,7 @@ class UploadEngineTest {
         scaleFactorRaw = "1.0",
         orientation = 0,
         roi = SerializableRoi(0f, 0f, 1f, 1f),
-        metrics = SerializableMetrics(100f, 20f, 100f),
+        metrics = SerializableMetrics(50f, 100f, 0f, 5f),
     )
 
     @Test
