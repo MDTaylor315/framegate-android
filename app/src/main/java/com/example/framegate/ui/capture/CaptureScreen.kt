@@ -105,4 +105,11 @@ private fun Hud(uiState: CaptureUiState) {
             "descartados: ${uiState.droppedFrames}",
         style = MaterialTheme.typography.bodySmall,
     )
+    if (uiState.planDiagnostics.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(text = "Diagnósticos del plan:", style = MaterialTheme.typography.bodySmall)
+        uiState.planDiagnostics.forEach { line ->
+            Text(text = line, style = MaterialTheme.typography.bodySmall)
+        }
+    }
 }

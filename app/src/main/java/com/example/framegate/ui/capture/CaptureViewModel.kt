@@ -56,6 +56,12 @@ class CaptureViewModel(
 
     private var viewSize: Pair<Int, Int>? = null
 
+    // El plan se carga desde el fixture (parseado en AppGraph), no se hardcodea.
+    private val plan: CapturePlan = AppGraph.capturePlan
+
+    // Diagnósticos del plan ya parseado; estables en la sesión (no se re-parsea). Texto plano.
+    private val planDiagnostics: List<String> = AppGraph.planDiagnostics.map { it.toString() }
+
     val uiState: StateFlow<CaptureUiState> = combine(
         _gateState,
         _lastMetrics,
@@ -73,20 +79,18 @@ class CaptureViewModel(
             msPerFrame = perf.msPerFrame,
             droppedFrames = perf.dropped,
             overlayRect = overlay,
+            planDiagnostics = planDiagnostics,
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT_MS),
-        initialValue = CaptureUiState(),
+        initialValue = CaptureUiState(planDiagnostics = planDiagnostics),
     )
 
     private val _uiEffect = Channel<CaptureUiEffect>(Channel.BUFFERED)
     val uiEffect = _uiEffect.receiveAsFlow()
 
     private var captureJob: Job? = null
-
-    // El plan se carga desde el fixture (parseado en AppGraph), no se hardcodea.
-    private val plan: CapturePlan = AppGraph.capturePlan
 
     fun onEvent(event: CaptureUiEvent) {
         when (event) {
