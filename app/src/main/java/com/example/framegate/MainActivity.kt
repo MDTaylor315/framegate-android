@@ -1,6 +1,5 @@
 package com.example.framegate
 
-import android.R.attr.contentDescription
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -9,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -22,18 +20,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import com.example.framegate.di.AppGraph
 import com.example.framegate.ui.capture.CaptureScreen
 import com.example.framegate.ui.queue.QueueScreen
 import com.example.framegate.ui.theme.FrameGateTheme
 
-enum class AppScreen{
+enum class AppScreen {
     CAPTURE,
-    QUEUE
+    QUEUE,
 }
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Inicializa el contenedor de DI a mano con el directorio de la app,
+        // del que sale el journal de persistencia de la cola.
+        AppGraph.init(filesDir)
         enableEdgeToEdge()
         setContent {
             FrameGateTheme {
@@ -44,33 +46,30 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun FrameGateApp(){
+fun FrameGateApp() {
     var currentScreen by remember { mutableStateOf(AppScreen.CAPTURE) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            NavigationBar{
+            NavigationBar {
                 NavigationBarItem(
                     selected = currentScreen == AppScreen.CAPTURE,
-                    onClick = {currentScreen = AppScreen.CAPTURE},
-                    icon = { Icon(Icons.Default.PlayArrow, contentDescription = "Captura")},
-                    label = {Text("Captura")}
+                    onClick = { currentScreen = AppScreen.CAPTURE },
+                    icon = { Icon(Icons.Default.PlayArrow, contentDescription = "Captura") },
+                    label = { Text("Captura") }
                 )
                 NavigationBarItem(
                     selected = currentScreen == AppScreen.QUEUE,
-                    onClick = {currentScreen = AppScreen.QUEUE},
-                    icon = { Icon(Icons.AutoMirrored.Default.List, contentDescription = "Cola")},
-                    label = {Text("Captura")}
+                    onClick = { currentScreen = AppScreen.QUEUE },
+                    icon = { Icon(Icons.AutoMirrored.Default.List, contentDescription = "Cola") },
+                    label = { Text("Cola") }
                 )
             }
         }
-
     ) { innerPadding ->
-
         val modifier = Modifier.padding(innerPadding)
-
-        when (currentScreen){
+        when (currentScreen) {
             AppScreen.CAPTURE -> CaptureScreen(modifier = modifier)
             AppScreen.QUEUE -> QueueScreen(modifier = modifier)
         }

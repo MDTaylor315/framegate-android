@@ -64,19 +64,10 @@ fun QueueScreen(
             style = MaterialTheme.typography.bodyLarge
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Button(
+            onClick = { viewModel.onEvent(QueueUiEvent.Refresh) }
         ) {
-            Button(
-                onClick = { viewModel.onEvent(QueueUiEvent.Refresh) }
-            ) {
-                Text("Actualizar Cola")
-            }
-            OutlinedButton(
-                onClick = { viewModel.onEvent(QueueUiEvent.RetryUpload("demo_failed")) }
-            ) {
-                Text("Agregar Demo Fallido")
-            }
+            Text("Procesar Cola")
         }
         Spacer(modifier = Modifier.height(16.dp))
         // Lista Desplegable (Equivalente a ListView.builder en Flutter)
