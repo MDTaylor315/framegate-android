@@ -5,11 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.example.framegate.di.AppGraph
 import com.example.framegate.domain.analyzer.MetricsAnalyzer
 import com.example.framegate.domain.fixtures.FixtureFrameSource
-import com.example.framegate.domain.gate.GateStateMachine
-import com.example.framegate.domain.gate.GateStatus
+import com.example.framegate.domain.gate.GatePhase
+import com.example.framegate.domain.gate.GateReducer
+import com.example.framegate.domain.gate.GateState
 import com.example.framegate.domain.model.BufferRect
 import com.example.framegate.domain.model.CapturePlan
 import com.example.framegate.domain.model.CaptureStep
+import com.example.framegate.domain.model.Metrics
 import com.example.framegate.domain.model.NormalizedRoi
 import com.example.framegate.domain.model.StepType
 import com.example.framegate.domain.model.Thresholds
@@ -40,7 +42,7 @@ class CaptureViewModel(
     private val _uiEffect = Channel<CaptureUiEffect>(Channel.BUFFERED)
     val uiEffect = _uiEffect.receiveAsFlow()
 
-    private val gateStateMachine = GateStateMachine()
+    private var gateState = GateState()
     private var captureJob: Job? = null
 
     private val mockPlan = CapturePlan(
@@ -51,7 +53,8 @@ class CaptureViewModel(
             CaptureStep(
                 id = "step_1",
                 type = StepType.SINGLE_FRAME,
-                thresholds = Thresholds(minBrightness = MIN_BRIGHTNESS),
+                // Umbrales laxos para que el frame sintético uniforme dispare en la demo.
+                thresholds = Thresholds(minFocus = 0.0, minBrightness = MIN_BRIGHTNESS, maxMotion = 1000.0),
                 roi = NormalizedRoi(ROI_X, ROI_Y, ROI_W, ROI_H),
                 requiredHoldFrames = REQUIRED_HOLD_FRAMES,
             )
@@ -69,7 +72,7 @@ class CaptureViewModel(
     private fun startCapture() {
         if (captureJob?.isActive == true) return
 
-        gateStateMachine.arm()
+        gateState = GateState()
         sendEffect(CaptureUiEffect.ShowToast("Loop de captura iniciado"))
         captureJob = viewModelScope.launch {
             var frameCount = 0
@@ -79,39 +82,46 @@ class CaptureViewModel(
 
                 val frameBytes = FixtureFrameSource.createUniformFrame(FRAME_SIZE, FRAME_SIZE, VALID_LUMA)
                 val bufferRect = BufferRect(0, 0, FRAME_SIZE, FRAME_SIZE)
-
                 val metrics = MetricsAnalyzer.analyze(frameBytes, FRAME_SIZE, bufferRect)
-                val gateResult = gateStateMachine.evaluate(metrics, mockPlan)
 
-                _uiState.update { it.copy(gateStatusText = gateResult.statusText) }
+                gateState = GateReducer.reduce(gateState, metrics, mockPlan)
+                _uiState.update { it.copy(gateStatusText = phaseText(gateState.phase)) }
 
-                if (gateResult.status is GateStatus.GateOpen) {
-                    val step = mockPlan.steps.first()
-                    val item = QueueItem(
-                        id = "cap_$frameCount",
-                        idempotencyKey = UUID.randomUUID().toString(),
-                        timestampEpochMillis = System.currentTimeMillis(),
-                        planName = mockPlan.name,
-                        scaleFactorRaw = mockPlan.scaleFactorRaw,
-                        orientation = 0,
-                        roi = SerializableRoi(step.roi.x, step.roi.y, step.roi.width, step.roi.height),
-                        metrics = SerializableMetrics.from(metrics),
-                    )
-                    queueStore.put(item)
+                if (gateState.phase is GatePhase.Armed) {
+                    val step = mockPlan.steps[gateState.stepIndex]
+                    queueStore.put(captureItem(frameCount, step, metrics))
                     launch { uploadEngine.drain() }
                     sendEffect(CaptureUiEffect.ShowToast("Fotograma capturado y encolado"))
-                }
-
-                if (gateResult.status is GateStatus.Completed) {
-                    gateStateMachine.arm()
+                    gateState = GateReducer.advanceToNextStep(GateReducer.fire(gateState), mockPlan)
                 }
             }
         }
     }
 
+    private fun captureItem(frameCount: Int, step: CaptureStep, metrics: Metrics) =
+        QueueItem(
+            id = "cap_$frameCount",
+            idempotencyKey = UUID.randomUUID().toString(),
+            timestampEpochMillis = System.currentTimeMillis(),
+            planName = mockPlan.name,
+            scaleFactorRaw = mockPlan.scaleFactorRaw,
+            orientation = 0,
+            roi = SerializableRoi(step.roi.x, step.roi.y, step.roi.width, step.roi.height),
+            metrics = SerializableMetrics.from(metrics),
+        )
+
+    private fun phaseText(phase: GatePhase): String = when (phase) {
+        is GatePhase.Blocked ->
+            if (phase.failing.isEmpty()) "Esperando" else "Bloqueado por ${phase.failing.joinToString()}"
+        is GatePhase.Holding -> "Estabilizando (${phase.held}/${phase.required})"
+        is GatePhase.Armed -> "¡Obturador abierto!"
+        is GatePhase.Fired -> "Capturando..."
+        is GatePhase.Complete -> "Plan completado"
+    }
+
     private fun pauseCapture() {
         captureJob?.cancel()
-        gateStateMachine.reset()
+        gateState = GateState()
         _uiState.update { it.copy(gateStatusText = "Pausado") }
         sendEffect(CaptureUiEffect.ShowToast("Loop de captura pausado"))
     }

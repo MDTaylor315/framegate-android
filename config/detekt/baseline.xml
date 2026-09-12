@@ -2,7 +2,6 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>CyclomaticComplexMethod:GateStateMachine.kt$GateStateMachine$fun evaluate( metrics: Metrics, plan: CapturePlan, stepIndex: Int = 0 ): GateResult</ID>
     <ID>LongMethod:CaptureScreen.kt$@Composable fun CaptureScreen( modifier: Modifier = Modifier, viewModel: CaptureViewModel = viewModel() )</ID>
     <ID>LongParameterList:CoordinateMapper.kt$CoordinateMapper$( bufferWidth: Int, bufferHeight: Int, sensorRotation: Int, isMirrored: Boolean = false, viewWidth: Float, viewHeight: Float, scaleMode: ScaleMode = ScaleMode.CROP, normalizedRoi: NormalizedRoi )</ID>
     <ID>MagicNumber:CoordinateMapper.kt$CoordinateMapper$270</ID>

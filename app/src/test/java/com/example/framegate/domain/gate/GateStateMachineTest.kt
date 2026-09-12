@@ -6,98 +6,80 @@ import com.example.framegate.domain.model.Metrics
 import com.example.framegate.domain.model.NormalizedRoi
 import com.example.framegate.domain.model.StepType
 import com.example.framegate.domain.model.Thresholds
-import junit.framework.TestCase.assertEquals
-import junit.framework.TestCase.assertFalse
-import junit.framework.TestCase.assertTrue
-import org.junit.Before
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GateStateMachineTest {
 
-    private lateinit var gateStateMachine: GateStateMachine
-    private lateinit var mockPlan: CapturePlan
+    // Umbrales: foco>=10, brillo>=50, movimiento<=15. Hold de 3 frames.
+    private val step = CaptureStep(
+        id = "s1",
+        type = StepType.SINGLE_FRAME,
+        thresholds = Thresholds(minFocus = 10.0, minBrightness = 50.0, maxMotion = 15.0),
+        roi = NormalizedRoi(),
+        requiredHoldFrames = 3,
+    )
+    private val plan = CapturePlan("p", "2026-01-01T00:00:00Z", "1.0", listOf(step))
 
-    @Before
-    fun setUp() {
-        gateStateMachine = GateStateMachine()
+    private fun good() = Metrics(focus = 100f, meanLuma = 100f, clippedFraction = 0f, motion = 2f)
+    private fun blurry() = Metrics(focus = 1f, meanLuma = 100f, clippedFraction = 0f, motion = 2f)
+    private fun shaky() = Metrics(focus = 100f, meanLuma = 100f, clippedFraction = 0f, motion = 40f)
 
-        // Plan simulado que requiere minBrightness = 50.0 y requiredHoldFrames = 2
-        val step = CaptureStep(
-            id = "step_1",
-            type = StepType.SINGLE_FRAME,
-            thresholds = Thresholds(minBrightness = 50.0),
-            roi = NormalizedRoi(0.25f, 0.30f, 0.50f, 0.40f),
-            requiredHoldFrames = 2
-        )
-        mockPlan = CapturePlan(
-            name = "plan_test",
-            createdAtIso = "2026-09-11T12:00:00Z",
-            scaleFactorRaw = "1.0",
-            steps = listOf(step)
-        )
+    @Test
+    fun `un frame bueno pasa a Holding 1 de N`() {
+        val state = GateReducer.reduce(GateState(), good(), plan)
+        assertEquals(GatePhase.Holding(1, 3), state.phase)
     }
 
     @Test
-    fun `en estado Idle el obturador siempre permanece cerrado`() {
-        val validMetrics = Metrics(focus = 50f, meanLuma = 100f, clippedFraction = 0f, motion = 0f)
-        val result = gateStateMachine.evaluate(validMetrics, mockPlan)
-
-        assertFalse(result.isGateOpen)
-        assertTrue(result.status is GateStatus.Idle)
+    fun `N frames buenos consecutivos arman el gate`() {
+        var state = GateState()
+        repeat(3) { state = GateReducer.reduce(state, good(), plan) }
+        assertEquals(GatePhase.Armed, state.phase)
     }
 
     @Test
-    fun `luz baja en estado Armed mantiene el obturador cerrado`() {
-        gateStateMachine.arm()
-
-        // Brillo de 30f (menor al mínimo de 50.0)
-        val lowLumaMetrics = Metrics(focus = 50f, meanLuma = 30f, clippedFraction = 0f, motion = 0f)
-        val result = gateStateMachine.evaluate(lowLumaMetrics, mockPlan)
-
-        assertFalse(result.isGateOpen)
-        assertTrue(result.status is GateStatus.Armed)
+    fun `un frame borroso bloquea reportando FOCUS`() {
+        val state = GateReducer.reduce(GateState(), blurry(), plan)
+        assertTrue(state.phase is GatePhase.Blocked)
+        assertEquals(setOf(Measurement.FOCUS), (state.phase as GatePhase.Blocked).failing)
     }
 
     @Test
-    fun `secuencia de luz constante logra la apertura del obturador y completado`() {
-        gateStateMachine.arm()
-        val validMetrics = Metrics(focus = 50f, meanLuma = 80f, clippedFraction = 0f, motion = 0f)
-
-        // Frame 1: Luz válida -> Entra a WaitingForStability (1 de 2)
-        val result1 = gateStateMachine.evaluate(validMetrics, mockPlan)
-        assertFalse(result1.isGateOpen)
-        assertTrue(result1.status is GateStatus.WaitingForStability)
-        val status1 = result1.status as GateStatus.WaitingForStability
-        assertEquals(1, status1.currentStableFrames)
-
-        // Frame 2: Luz válida -> Completa los 2 frames -> GateOpen
-        val result2 = gateStateMachine.evaluate(validMetrics, mockPlan)
-        assertTrue(result2.isGateOpen)
-        assertTrue(result2.status is GateStatus.GateOpen)
-
-        // Frame 3: Siguiente tick -> Transiciona a Capturing
-        val result3 = gateStateMachine.evaluate(validMetrics, mockPlan)
-        assertTrue(result3.isGateOpen)
-        assertTrue(result3.status is GateStatus.Capturing)
-
-        // Frame 4: Siguiente tick -> Transiciona a Completed
-        val result4 = gateStateMachine.evaluate(validMetrics, mockPlan)
-        assertFalse(result4.isGateOpen)
-        assertTrue(result4.status is GateStatus.Completed)
+    fun `un frame movido bloquea reportando MOTION`() {
+        val state = GateReducer.reduce(GateState(), shaky(), plan)
+        assertEquals(setOf(Measurement.MOTION), (state.phase as GatePhase.Blocked).failing)
     }
 
     @Test
-    fun `caida de luz durante la estabilizacion reinicia el contador`() {
-        gateStateMachine.arm()
-        val validMetrics = Metrics(focus = 50f, meanLuma = 80f, clippedFraction = 0f, motion = 0f)
-        val lowMetrics = Metrics(focus = 50f, meanLuma = 20f, clippedFraction = 0f, motion = 0f)
+    fun `un frame malo resetea el contador de hold`() {
+        var state = GateState()
+        state = GateReducer.reduce(state, good(), plan)   // 1/3
+        state = GateReducer.reduce(state, good(), plan)   // 2/3
+        state = GateReducer.reduce(state, blurry(), plan) // falla -> reset
+        assertEquals(0, state.stableFrames)
+        assertTrue(state.phase is GatePhase.Blocked)
+    }
 
-        // Frame 1: Luz buena -> (1/2)
-        gateStateMachine.evaluate(validMetrics, mockPlan)
+    @Test
+    fun `secuencia jitter no arma antes de N consecutivos`() {
+        var state = GateState()
+        // bueno, bueno, malo, bueno, bueno, malo... nunca 3 seguidos.
+        val sequence = listOf(good(), good(), blurry(), good(), good(), shaky(), good(), good())
+        sequence.forEach { state = GateReducer.reduce(state, it, plan) }
+        // Tras la secuencia inestable, aún no llegó a 3 consecutivos.
+        assertTrue(state.phase !is GatePhase.Armed)
+    }
 
-        // Frame 2: La luz cae a 20f -> Reinicia contador y regresa a Armed
-        val resultDrop = gateStateMachine.evaluate(lowMetrics, mockPlan)
-        assertFalse(resultDrop.isGateOpen)
-        assertTrue(resultDrop.status is GateStatus.Armed)
+    @Test
+    fun `tras armar y disparar avanza al siguiente paso o completa`() {
+        var state = GateState()
+        repeat(3) { state = GateReducer.reduce(state, good(), plan) } // Armed
+        state = GateReducer.fire(state)
+        assertEquals(GatePhase.Fired, state.phase)
+        state = GateReducer.advanceToNextStep(state, plan)
+        // Solo hay un paso -> Complete.
+        assertEquals(GatePhase.Complete, state.phase)
     }
 }
