@@ -2,7 +2,18 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.detekt)
 
+}
+
+detekt {
+    // Reglas definidas en el archivo del repositorio.
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    // No fallar por reglas nuevas de versiones futuras; solo por lo configurado.
+    buildUponDefaultConfig = true
+    // Baseline: registra la deuda de estilo preexistente (en código heredado que
+    // se reescribe por fases). Los hallazgos NUEVOS siguen fallando el build.
+    baseline = file("$rootDir/config/detekt/baseline.xml")
 }
 
 android {
