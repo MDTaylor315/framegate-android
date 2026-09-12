@@ -17,9 +17,6 @@ import com.example.framegate.domain.model.FrameData
 import com.example.framegate.domain.model.Metrics
 import com.example.framegate.domain.model.height
 import com.example.framegate.domain.model.width
-import com.example.framegate.domain.model.NormalizedRoi
-import com.example.framegate.domain.model.StepType
-import com.example.framegate.domain.model.Thresholds
 import com.example.framegate.domain.queue.CaptureStore
 import com.example.framegate.domain.queue.JournalQueueStore
 import com.example.framegate.domain.queue.QueueItem
@@ -88,21 +85,8 @@ class CaptureViewModel(
 
     private var captureJob: Job? = null
 
-    private val mockPlan = CapturePlan(
-        name = "Plan de Prueba Industrial",
-        createdAtIso = "2026-09-11T12:00:00Z",
-        scaleFactorRaw = "1.0",
-        steps = listOf(
-            CaptureStep(
-                id = "step_1",
-                type = StepType.SINGLE_FRAME,
-                // Umbrales laxos para que el frame sintético uniforme dispare en la demo.
-                thresholds = Thresholds(minFocus = 0.0, minBrightness = MIN_BRIGHTNESS, maxMotion = 1000.0),
-                roi = NormalizedRoi(ROI_X, ROI_Y, ROI_W, ROI_H),
-                requiredHoldFrames = REQUIRED_HOLD_FRAMES,
-            )
-        )
-    )
+    // El plan se carga desde el fixture (parseado en AppGraph), no se hardcodea.
+    private val plan: CapturePlan = AppGraph.capturePlan
 
     fun onEvent(event: CaptureUiEvent) {
         when (event) {
@@ -119,7 +103,7 @@ class CaptureViewModel(
     private fun recomputeOverlay() {
         val (w, h) = viewSize ?: return
         if (w <= 0 || h <= 0) return
-        val step = mockPlan.steps[_gateState.value.stepIndex.coerceIn(0, mockPlan.steps.lastIndex)]
+        val step = plan.steps[_gateState.value.stepIndex.coerceIn(0, plan.steps.lastIndex)]
         val mapping = CoordinateMapper.mapCoordinates(
             bufferWidth = FRAME_WIDTH,
             bufferHeight = FRAME_HEIGHT,
@@ -163,14 +147,14 @@ class CaptureViewModel(
         _perf.value = PerfStats(msPerFrame = elapsedMs.toFloat(), dropped = dropped)
 
         _lastMetrics.value = metrics
-        _gateState.value = GateReducer.reduce(_gateState.value, metrics, mockPlan)
+        _gateState.value = GateReducer.reduce(_gateState.value, metrics, plan)
 
         if (_gateState.value.phase is GatePhase.Armed) {
-            val step = mockPlan.steps[_gateState.value.stepIndex]
+            val step = plan.steps[_gateState.value.stepIndex]
             queueStore.put(captureItem(frameCount, step, metrics, frame.yBuffer))
             viewModelScope.launch { uploadEngine.drain() }
             sendEffect(CaptureUiEffect.ShowToast("Fotograma capturado y encolado"))
-            _gateState.value = GateReducer.advanceToNextStep(GateReducer.fire(_gateState.value), mockPlan)
+            _gateState.value = GateReducer.advanceToNextStep(GateReducer.fire(_gateState.value), plan)
         }
     }
 
@@ -182,8 +166,8 @@ class CaptureViewModel(
             id = id,
             idempotencyKey = UUID.randomUUID().toString(),
             timestampEpochMillis = System.currentTimeMillis(),
-            planName = mockPlan.name,
-            scaleFactorRaw = mockPlan.scaleFactorRaw,
+            planName = plan.name,
+            scaleFactorRaw = plan.scaleFactorRaw,
             orientation = 0,
             roi = SerializableRoi(step.roi.x, step.roi.y, step.roi.width, step.roi.height),
             metrics = SerializableMetrics.from(metrics),
@@ -219,12 +203,6 @@ class CaptureViewModel(
         const val NANOS_PER_MILLI = 1_000_000.0
         const val FRAME_WIDTH = 1920
         const val FRAME_HEIGHT = 1080
-        const val MIN_BRIGHTNESS = 50.0
-        const val REQUIRED_HOLD_FRAMES = 2
-        const val ROI_X = 0.25f
-        const val ROI_Y = 0.30f
-        const val ROI_W = 0.50f
-        const val ROI_H = 0.40f
     }
 }
 

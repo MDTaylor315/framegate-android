@@ -33,9 +33,9 @@ enum class AppScreen {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Inicializa el contenedor de DI a mano con el directorio de la app,
-        // del que sale el journal de persistencia de la cola.
-        AppGraph.init(filesDir)
+        // El asset (necesita Context) se lee aquí; AppGraph solo lo parsea.
+        val planJson = assets.open("fixtures/plan_messy.json").bufferedReader().use { it.readText() }
+        AppGraph.init(filesDir, planJson)
         enableEdgeToEdge()
         setContent {
             FrameGateTheme {
