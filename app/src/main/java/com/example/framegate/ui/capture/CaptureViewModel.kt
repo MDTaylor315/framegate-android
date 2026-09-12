@@ -60,6 +60,9 @@ class CaptureViewModel(
             gateStatusText = phaseText(gate.phase),
             currentStepIndex = gate.stepIndex,
             fps = if (capturing) FRAMES_PER_SECOND else 0f,
+            focus = metrics?.focus ?: 0f,
+            brightness = metrics?.meanLuma ?: 0f,
+            motion = metrics?.motion ?: 0f,
         )
     }.stateIn(
         scope = viewModelScope,

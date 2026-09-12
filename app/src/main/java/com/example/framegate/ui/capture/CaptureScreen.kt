@@ -96,7 +96,6 @@ fun CaptureScreen(
         }
 
 
-    // Tus botones y textos actuales
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -112,6 +111,18 @@ fun CaptureScreen(
         Text(
             text = "Estado del obturador: ${uiState.gateStatusText}",
             style = MaterialTheme.typography.bodyLarge
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        // HUD: mediciones del último frame.
+        Text(
+            text = "Foco: ${"%.1f".format(uiState.focus)}  " +
+                "Brillo: ${"%.1f".format(uiState.brightness)}  " +
+                "Movimiento: ${"%.1f".format(uiState.motion)}",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = "FPS: ${"%.1f".format(uiState.fps)}",
+            style = MaterialTheme.typography.bodySmall
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
