@@ -6,14 +6,14 @@
     {
       "step_id": "step-01",
       "type": "SINGLE_FRAME",
-      "thresholds": { "min_focus": 12.0, "min_brightness": 55.0, "max_motion": 8.0 },
+      "thresholds": { "focus_ratio": 0.6, "min_brightness": 55.0, "max_motion": 8.0 },
       "roi": { "x": 0.1, "y": 0.1, "width": 0.8, "height": 0.8 },
       "hold_frames": 4
     },
     {
       "step_id": "step-02",
       "type": "SINGLE_FRAME",
-      "thresholds": { "min_focus": 18.0, "min_brightness": 60.0, "max_motion": 6.0 },
+      "thresholds": { "focus_ratio": 0.75, "min_brightness": 60.0, "max_motion": 6.0 },
       "roi": { "x": 0.25, "y": 0.25, "width": 0.5, "height": 0.5 },
       "hold_frames": 6
     }

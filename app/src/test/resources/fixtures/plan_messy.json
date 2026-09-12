@@ -8,7 +8,7 @@
       "StepId": "step-01",
       "type": "SINGLE_FRAME",
       "thresholds": {
-        "MIN_FOCUS": 15.0,
+        "FOCUS_RATIO": "0.7",
         "min_brightness": "60.0",
         "max_motion": null
       },
@@ -18,13 +18,13 @@
     {
       "StepId": "step-01",
       "type": "SINGLE_FRAME",
-      "thresholds": { "MIN_FOCUS": 20.0 },
+      "thresholds": { "focus_ratio": 0.8 },
       "roi": { "x": 0.1, "y": 0.1, "width": 0.8, "height": 0.8 }
     },
     {
       "StepId": "step-02-desconocido",
       "type": "PASO_DESCONOCIDO_FUTURO",
-      "thresholds": { "MIN_FOCUS": 99.0 }
+      "thresholds": { "focus_ratio": 0.9 }
     },
     {
       "StepId": "step-03-null-thresholds",

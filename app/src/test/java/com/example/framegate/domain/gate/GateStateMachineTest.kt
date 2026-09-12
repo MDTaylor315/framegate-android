@@ -12,11 +12,11 @@ import org.junit.Test
 
 class GateStateMachineTest {
 
-    // Umbrales: foco>=10, brillo>=50, movimiento<=15. Hold de 3 frames.
+    // Umbrales: foco>=60% del baseline, brillo>=50, movimiento<=15. Hold de 3 frames.
     private val step = CaptureStep(
         id = "s1",
         type = StepType.SINGLE_FRAME,
-        thresholds = Thresholds(minFocus = 10.0, minBrightness = 50.0, maxMotion = 15.0),
+        thresholds = Thresholds(focusRatio = 0.6, minBrightness = 50.0, maxMotion = 15.0),
         roi = NormalizedRoi(),
         requiredHoldFrames = 3,
     )

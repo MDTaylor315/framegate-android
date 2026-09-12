@@ -15,8 +15,8 @@ define el comportamiento correcto, y los tests deben coincidir con él.
 
 | id | origen | notas |
 |---|---|---|
-| step-01 | primer paso | min_brightness `"60.0"` (string) → 60.0; max_motion null → default 15.0; hold_frames `"5"` (string) → 5 |
-| step-03-null-thresholds | cuarto paso | thresholds null → todos por defecto (focus 10.0, brillo 50.0, motion 15.0) |
+| step-01 | primer paso | focus_ratio (clave `FOCUS_RATIO`, casing mixto) `"0.7"` (string) → 0.7; min_brightness `"60.0"` (string) → 60.0; max_motion null → default 15.0; hold_frames `"5"` (string) → 5 |
+| step-03-null-thresholds | cuarto paso | thresholds null → todos por defecto (focus_ratio 0.6, brillo 50.0, motion 15.0) |
 
 Pasos descartados:
 - El segundo `step-01`: id duplicado → se descarta la repetición (se conserva el primero).

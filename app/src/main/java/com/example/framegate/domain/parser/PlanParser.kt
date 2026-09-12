@@ -122,7 +122,7 @@ class PlanParser {
             return Thresholds()
         }
         return Thresholds(
-            minFocus = obj.number("MIN_FOCUS", "min_focus", "focus") ?: Thresholds.DEFAULT_MIN_FOCUS,
+            focusRatio = obj.number("FOCUS_RATIO", "focus_ratio", "focus") ?: Thresholds.DEFAULT_FOCUS_RATIO,
             minBrightness = obj.number("MIN_BRIGHTNESS", "min_brightness", "brightness")
                 ?: Thresholds.DEFAULT_MIN_BRIGHTNESS,
             maxMotion = obj.number("MAX_MOTION", "max_motion", "motion") ?: Thresholds.DEFAULT_MAX_MOTION,

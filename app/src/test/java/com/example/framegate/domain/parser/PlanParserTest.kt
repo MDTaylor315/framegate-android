@@ -37,10 +37,10 @@ class PlanParserTest {
     // --- Un test por cada tipo de malformación ---
 
     @Test
-    fun `casing mixto de claves (StepId, MIN_FOCUS) se resuelve`() {
+    fun `focus_ratio con casing mixto (FOCUS_RATIO) y como string se resuelve`() {
         val result = parser.parse(loadFixture("plan_messy.json"))
         val step = result.plan!!.steps.first { it.id == "step-01" }
-        assertEquals(15.0, step.thresholds.minFocus, 0.001)
+        assertEquals(0.7, step.thresholds.focusRatio, 0.001)
     }
 
     @Test
@@ -76,7 +76,7 @@ class PlanParserTest {
     fun `objeto declarado pero null usa defaults (thresholds null)`() {
         val result = parser.parse(loadFixture("plan_messy.json"))
         val step = result.plan!!.steps.first { it.id == "step-03-null-thresholds" }
-        assertEquals(10.0, step.thresholds.minFocus, 0.001)
+        assertEquals(0.6, step.thresholds.focusRatio, 0.001)
         assertTrue(codes(result).contains("MISSING_THRESHOLDS"))
     }
 
