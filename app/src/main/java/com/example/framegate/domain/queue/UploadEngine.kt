@@ -13,6 +13,7 @@ class UploadEngine(
     private val store: JournalQueueStore,
     private val transport: UploadTransport,
     private val clock: Clock,
+    private val captureStore: CaptureStore? = null,
     private val retryPolicy: RetryPolicy = RetryPolicy(),
     private val random: () -> Double = Math::random,
 ) {
@@ -35,10 +36,11 @@ class UploadEngine(
             )
             store.put(current)
 
+            val jpegBytes = captureStore?.read(current.artifactPath) ?: ByteArray(0)
             val result = transport.uploadCapture(
                 idempotencyKey = current.idempotencyKey,
                 manifestJson = ManifestBuilder.build(current),
-                jpegBytes = ByteArray(0),
+                jpegBytes = jpegBytes,
             )
 
             when (result) {

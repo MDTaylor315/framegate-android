@@ -15,6 +15,7 @@ import com.example.framegate.domain.model.Metrics
 import com.example.framegate.domain.model.NormalizedRoi
 import com.example.framegate.domain.model.StepType
 import com.example.framegate.domain.model.Thresholds
+import com.example.framegate.domain.queue.CaptureStore
 import com.example.framegate.domain.queue.JournalQueueStore
 import com.example.framegate.domain.queue.QueueItem
 import com.example.framegate.domain.queue.SerializableMetrics
@@ -34,6 +35,7 @@ import java.util.UUID
 // El loop de captura es provisional; el hot path real llega en fases posteriores.
 class CaptureViewModel(
     private val queueStore: JournalQueueStore = AppGraph.queueStore,
+    private val captureStore: CaptureStore = AppGraph.captureStore,
     private val uploadEngine: UploadEngine = AppGraph.uploadEngine,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(CaptureUiState())
@@ -89,7 +91,7 @@ class CaptureViewModel(
 
                 if (gateState.phase is GatePhase.Armed) {
                     val step = mockPlan.steps[gateState.stepIndex]
-                    queueStore.put(captureItem(frameCount, step, metrics))
+                    queueStore.put(captureItem(frameCount, step, metrics, frameBytes))
                     launch { uploadEngine.drain() }
                     sendEffect(CaptureUiEffect.ShowToast("Fotograma capturado y encolado"))
                     gateState = GateReducer.advanceToNextStep(GateReducer.fire(gateState), mockPlan)
@@ -98,9 +100,12 @@ class CaptureViewModel(
         }
     }
 
-    private fun captureItem(frameCount: Int, step: CaptureStep, metrics: Metrics) =
-        QueueItem(
-            id = "cap_$frameCount",
+    private fun captureItem(frameCount: Int, step: CaptureStep, metrics: Metrics, bytes: ByteArray): QueueItem {
+        val id = "cap_$frameCount"
+        // Se escribe el artefacto en disco ANTES de encolar el registro.
+        val artifactPath = captureStore.write(id, bytes)
+        return QueueItem(
+            id = id,
             idempotencyKey = UUID.randomUUID().toString(),
             timestampEpochMillis = System.currentTimeMillis(),
             planName = mockPlan.name,
@@ -108,7 +113,9 @@ class CaptureViewModel(
             orientation = 0,
             roi = SerializableRoi(step.roi.x, step.roi.y, step.roi.width, step.roi.height),
             metrics = SerializableMetrics.from(metrics),
+            artifactPath = artifactPath,
         )
+    }
 
     private fun phaseText(phase: GatePhase): String = when (phase) {
         is GatePhase.Blocked ->

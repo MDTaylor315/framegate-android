@@ -18,17 +18,13 @@ class ManifestBuilderTest {
         metrics = SerializableMetrics(45.6789f, 123.4567f, 0.1234f, 12.3456f),
     )
 
+    private fun loadGolden(): String =
+        requireNotNull(javaClass.getResourceAsStream("/fixtures/manifest_golden.json")) { "falta golden" }
+            .bufferedReader().use { it.readText() }.trim()
+
     @Test
     fun `manifest coincide byte a byte con el golden`() {
-        val expected =
-            """{"idempotency_key":"11111111-1111-1111-1111-111111111111",""" +
-            """"capture_id":"cap_001","plan_name":"Plan Industrial",""" +
-            """"captured_at":1757592000000,"orientation":90,""" +
-            """"scale_factor":1.234567890123456789,""" +
-            """"region":{"origin":"top_left","x":0.2,"y":0.2,"width":0.6,"height":0.6},""" +
-            """"measurements":{"focus":45.679,"mean_luma":123.457,"clipped_fraction":0.123,"motion":12.346}}"""
-
-        assertEquals(expected, ManifestBuilder.build(item()))
+        assertEquals(loadGolden(), ManifestBuilder.build(item()))
     }
 
     @Test

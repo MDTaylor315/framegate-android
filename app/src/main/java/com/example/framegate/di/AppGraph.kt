@@ -3,6 +3,7 @@ package com.example.framegate.di
 import com.example.framegate.domain.interfaces.Clock
 import com.example.framegate.domain.interfaces.SystemClock
 import com.example.framegate.domain.interfaces.UploadTransport
+import com.example.framegate.domain.queue.CaptureStore
 import com.example.framegate.domain.queue.FailureScript
 import com.example.framegate.domain.queue.FakeUploadTransport
 import com.example.framegate.domain.queue.JournalQueueStore
@@ -22,6 +23,9 @@ object AppGraph {
     lateinit var queueStore: JournalQueueStore
         private set
 
+    lateinit var captureStore: CaptureStore
+        private set
+
     lateinit var uploadEngine: UploadEngine
         private set
 
@@ -35,10 +39,11 @@ object AppGraph {
 
         val journalFile = File(filesDir, "queue-journal.ndjson")
         queueStore = JournalQueueStore(journalFile)
+        captureStore = CaptureStore(File(filesDir, "captures"))
         clock = SystemClock()
         // Sin guion de fallos: en la app real el transporte simplemente almacena.
         transport = FakeUploadTransport(FailureScript.empty())
-        uploadEngine = UploadEngine(queueStore, transport, clock)
+        uploadEngine = UploadEngine(queueStore, transport, clock, captureStore)
 
         initialized = true
     }

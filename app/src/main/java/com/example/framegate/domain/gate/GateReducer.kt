@@ -5,12 +5,8 @@ import com.example.framegate.domain.model.Metrics
 import com.example.framegate.domain.model.Thresholds
 
 /**
- * Reducer puro del gate: dado el estado actual, las métricas del frame y el plan,
- * devuelve el nuevo estado. No guarda estado interno.
- *
- * El obturador solo se arma tras N frames consecutivos en que las tres
- * mediciones pasan. Cualquier frame que falle resetea el contador (así son N
- * consecutivos reales, contados en frames, no en tiempo).
+ * Reducer puro: (estado, métricas, plan) -> nuevo estado. Arma tras N frames
+ * buenos consecutivos; cualquier frame que falla resetea el contador.
  */
 object GateReducer {
 

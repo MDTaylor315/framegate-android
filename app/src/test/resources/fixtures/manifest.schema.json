@@ -1,0 +1,25 @@
+{
+  "title": "CaptureManifest",
+  "description": "Contrato del manifest de captura. Campos en snake_case y orden estable.",
+  "fields": {
+    "idempotency_key": "string, UUID generado en cliente, estable en toda la vida del registro",
+    "capture_id": "string, id local de la captura",
+    "plan_name": "string",
+    "captured_at": "integer, epoch-millis",
+    "orientation": "integer, uno de 0/90/180/270",
+    "scale_factor": "number decimal crudo (sin pasar por Double, preserva todos los digitos)",
+    "region": {
+      "origin": "string, siempre top_left",
+      "x": "number a 3 decimales",
+      "y": "number a 3 decimales",
+      "width": "number a 3 decimales",
+      "height": "number a 3 decimales"
+    },
+    "measurements": {
+      "focus": "number a 3 decimales",
+      "mean_luma": "number a 3 decimales",
+      "clipped_fraction": "number a 3 decimales",
+      "motion": "number a 3 decimales"
+    }
+  }
+}

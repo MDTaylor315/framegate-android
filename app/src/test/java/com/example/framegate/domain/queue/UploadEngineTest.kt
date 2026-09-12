@@ -84,7 +84,7 @@ class UploadEngineTest {
         )
         val transport = FakeUploadTransport(script)
         val clock = FakeClock()
-        val engine = UploadEngine(store, transport, clock, RetryPolicy(), random = { 0.0 })
+        val engine = UploadEngine(store, transport, clock, retryPolicy = RetryPolicy(), random = { 0.0 })
 
         engine.drain()
 
@@ -101,7 +101,10 @@ class UploadEngineTest {
         // Siempre 503: nunca almacena.
         val script = FailureScript(mapOf("key-a" to List(10) { Outcome.Transient(503) }))
         val transport = FakeUploadTransport(script)
-        val engine = UploadEngine(store, transport, FakeClock(), RetryPolicy(maxAttempts = 3), random = { 0.0 })
+        val engine = UploadEngine(
+            store, transport, FakeClock(),
+            retryPolicy = RetryPolicy(maxAttempts = 3), random = { 0.0 },
+        )
 
         engine.drain()
 

@@ -29,6 +29,8 @@ data class QueueItem(
     val orientation: Int,
     val roi: SerializableRoi,
     val metrics: SerializableMetrics,
+    // Ruta del artefacto de captura en disco; el registro guarda la ruta, no los bytes.
+    val artifactPath: String = "",
     val status: QueueItemStatus = QueueItemStatus.PENDING,
     val attempts: Int = 0,
     val lastError: String? = null,

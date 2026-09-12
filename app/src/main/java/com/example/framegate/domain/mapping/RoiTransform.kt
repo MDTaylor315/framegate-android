@@ -3,10 +3,8 @@ package com.example.framegate.domain.mapping
 import com.example.framegate.domain.model.NormalizedRoi
 
 /**
- * Transforma un ROI normalizado (0..1) aplicando espejo y rotación, de modo que
- * quede en las coordenadas que el usuario realmente ve. Es geometría pura: no
- * toca píxeles ni pantalla, solo remapea el rectángulo dentro del cuadrado
- * unitario. Se aplica primero el espejo (espacio del sensor) y luego la rotación.
+ * Geometría pura: aplica espejo y luego rotación a un ROI normalizado (0..1),
+ * para dejarlo en las coordenadas que el usuario ve.
  */
 object RoiTransform {
 
@@ -15,10 +13,7 @@ object RoiTransform {
     private const val HALF = 180
     private const val THREE_QUARTER = 270
 
-    /**
-     * [sensorRotation] y [displayRotation] en grados (0/90/180/270).
-     * La rotación neta que ve el usuario es la diferencia entre ambas.
-     */
+    // Rotaciones en grados (0/90/180/270). La neta es la diferencia sensor-display.
     fun transform(
         roi: NormalizedRoi,
         sensorRotation: Int,
