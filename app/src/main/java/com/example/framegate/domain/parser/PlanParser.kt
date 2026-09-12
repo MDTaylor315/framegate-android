@@ -12,181 +12,160 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
+/**
+ * Decodifica un plan tolerando entradas "sucias" (casing mixto, números como
+ * string, nulos, claves desconocidas...). Fail-soft por paso, fail-hard solo si
+ * el plan entero es inutilizable. Reporta diagnósticos tipados.
+ */
 class PlanParser {
 
-    private val jsonConfig = Json{
+    private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
-        coerceInputValues = true
     }
 
-    fun parse(jsonString: String): PlanParseResult{
-        val diagnostics = mutableListOf<String>()
+    fun parse(jsonString: String): PlanParseResult {
+        val diagnostics = mutableListOf<Diagnostic>()
 
-        return try{
-            val rootElement = jsonConfig.parseToJsonElement(jsonString).jsonObject
-
-            val planName = rootElement.str("plan_name") ?: "Plan Sin Nombre"
-            val createdAt = rootElement.str("created_at") ?: "1970-01-01T00:00:00Z"
-
-            if(!createdAt.endsWith("Z") && !createdAt.contains("+")){
-                diagnostics.add("Advertencia: 'created_at' ($createdAt) no especifica zona horaria. Se asume UTC.")
-            }
-
-            val scaleFactorRaw = rootElement.str("scale_factor") ?: "1.0"
-
-
-            val stepsArray = rootElement["steps"]?.jsonArray ?: run{
-                diagnostics.add("Error fatal: No se encontró la lista 'steps' en el JSON.")
-                return PlanParseResult(plan = null, diagnostics = diagnostics, isSuccess = false)
-            }
-
-            val validSteps =mutableListOf<CaptureStep>()
-            val seenStepIds = mutableSetOf<String>()
-
-            for((index, stepElement) in stepsArray.withIndex()){
-                val stepObj = stepElement.jsonObject
-
-                val stepId = stepObj.str("StepId", "step_id", "id") ?: "step-$index"
-
-                if(seenStepIds.contains(stepId)){
-                    diagnostics.add("Advertencia en paso index $index: ID de paso duplicado '$stepId'.")
-                }
-                seenStepIds.add(stepId)
-
-                val typeRaw = stepObj.str("type") ?: "SINGLE_FRAME"
-                val stepType = try{
-                    StepType.valueOf(typeRaw)
-                }catch(e: IllegalArgumentException){
-                    diagnostics.add("Fail-Soft paso '$stepId': Tipo de paso desconocido '$typeRaw'. Se salta el paso")
-                    continue
-                }
-
-                val thresholds = parseObjectSafely(stepObj, "thresholds", stepId, diagnostics, { Thresholds() }) {
-                    parseThresholds(it, stepId, diagnostics)
-                }
-
-
-                val roi = parseObjectSafely(stepObj, "roi", stepId, diagnostics, { NormalizedRoi() }) {
-                    parseRoi(it)
-                }
-
-
-                val holdFrames = stepObj["hold_frames"]?.jsonPrimitive?.intOrNull
-                    ?: stepObj["hold_frames"]?.jsonPrimitive?.content?.toIntOrNull()
-                    ?: 5
-
-                validSteps.add(
-                    CaptureStep(
-                        id = stepId,
-                        type = stepType,
-                        thresholds = thresholds,
-                        roi = roi,
-                        requiredHoldFrames = holdFrames
-                    )
-                )
-            }
-
-            if(validSteps.isEmpty()){
-                diagnostics.add("Error fatal: No se encontraron pasos válidos utilizables en el plan.")
-                PlanParseResult(plan = null, diagnostics = diagnostics, isSuccess = false)
-            }else{
-                val plan = CapturePlan(
-                    name = planName,
-                    createdAtIso = createdAt,
-                    scaleFactorRaw = scaleFactorRaw,
-                    steps = validSteps
-                )
-                PlanParseResult(plan = plan, diagnostics = diagnostics, isSuccess = true)
-
-            }
-
-
-        }catch (e: Exception){
-            diagnostics.add("Error fatal al parsear sintaxis del Json: ${e.localizedMessage}")
-            PlanParseResult(plan = null, diagnostics = diagnostics, isSuccess = false)
+        val root = runCatching { json.parseToJsonElement(jsonString).jsonObject }.getOrNull()
+        if (root == null) {
+            diagnostics += Diagnostic.error("INVALID_JSON", "JSON inválido o vacío.")
+            return PlanParseResult(plan = null, diagnostics = diagnostics)
         }
-    }
 
-    private fun findStringKey(obj: JsonObject, vararg keys: String): String?{
-        for(key in keys){
-            val element = obj[key]
-            if (element != null) return element.jsonPrimitive.content
+        val createdAt = root.string("created_at") ?: DEFAULT_CREATED_AT
+        if (!hasTimezone(createdAt)) {
+            diagnostics += Diagnostic.warning(
+                "TIMESTAMP_NO_TZ",
+                "'created_at' ($createdAt) no tiene zona horaria; se asume UTC.",
+            )
         }
-        return null
+
+        val stepsArray = root["steps"]?.jsonArray
+        val steps = stepsArray?.let { parseSteps(it, diagnostics) } ?: emptyList()
+
+        val plan = when {
+            stepsArray == null -> {
+                diagnostics += Diagnostic.error("NO_STEPS", "El plan no contiene la lista 'steps'.")
+                null
+            }
+            steps.isEmpty() -> {
+                diagnostics += Diagnostic.error("NO_USABLE_STEPS", "Ningún paso del plan es utilizable.")
+                null
+            }
+            else -> CapturePlan(
+                name = root.string("plan_name") ?: DEFAULT_PLAN_NAME,
+                createdAtIso = createdAt,
+                scaleFactorRaw = root.string("scale_factor") ?: DEFAULT_SCALE_FACTOR,
+                steps = steps,
+            )
+        }
+        return PlanParseResult(plan = plan, diagnostics = diagnostics)
     }
 
-    private fun parseThresholds(obj: JsonObject, stepId: String, diagnostics: MutableList<String>): Thresholds {
-        return Thresholds(
-            minFocus = obj.num(arrayOf("MIN_FOCUS", "min_focus", "focus"), "min_focus", stepId, Thresholds.DEFAULT_MIN_FOCUS, diagnostics),
-            minBrightness = obj.num(arrayOf("MIN_BRIGHTNESS", "min_brightness", "brightness"), "min_brightness", stepId, Thresholds.DEFAULT_MIN_BRIGHTNESS, diagnostics),
-            maxMotion = obj.num(arrayOf("MAX_MOTION", "max_motion", "motion"), "max_motion", stepId, Thresholds.DEFAULT_MAX_MOTION, diagnostics)
+    private fun parseSteps(
+        array: List<kotlinx.serialization.json.JsonElement>,
+        diagnostics: MutableList<Diagnostic>,
+    ): List<CaptureStep> {
+        val steps = mutableListOf<CaptureStep>()
+        val seenIds = mutableSetOf<String>()
+
+        array.forEachIndexed { index, element ->
+            val obj = element.jsonObject
+            val id = obj.string("StepId", "step_id", "id") ?: "step-$index"
+
+            if (!seenIds.add(id)) {
+                diagnostics += Diagnostic.warning(
+                    "DUPLICATE_STEP_ID",
+                    "Id de paso duplicado '$id'; se descarta la repetición.",
+                )
+                return@forEachIndexed
+            }
+
+            val step = parseStep(obj, id, diagnostics)
+            if (step != null) steps += step
+        }
+        return steps
+    }
+
+    private fun parseStep(obj: JsonObject, id: String, diagnostics: MutableList<Diagnostic>): CaptureStep? {
+        val typeRaw = obj.string("type") ?: StepType.SINGLE_FRAME.name
+        val type = runCatching { StepType.valueOf(typeRaw) }.getOrNull()
+        if (type == null) {
+            diagnostics += Diagnostic.warning(
+                "UNKNOWN_STEP_TYPE",
+                "Paso '$id': tipo desconocido '$typeRaw'; se omite el paso.",
+            )
+            return null
+        }
+
+        return CaptureStep(
+            id = id,
+            type = type,
+            thresholds = parseThresholds(obj["thresholds"] as? JsonObject, id, diagnostics),
+            roi = parseRoi(obj["roi"] as? JsonObject, id, diagnostics),
+            requiredHoldFrames = obj.int("hold_frames") ?: DEFAULT_HOLD_FRAMES,
         )
     }
 
-    private fun parseDoubleValue(obj: JsonObject, vararg keys: String): Double? {
-        for (key in keys) {
-            val element = obj[key] ?: continue
-            val prim = element.jsonPrimitive
-            return prim.doubleOrNull ?: prim.content.toDoubleOrNull()
+    private fun parseThresholds(
+        obj: JsonObject?,
+        id: String,
+        diagnostics: MutableList<Diagnostic>,
+    ): Thresholds {
+        if (obj == null) {
+            diagnostics += Diagnostic.warning(
+                "MISSING_THRESHOLDS",
+                "Paso '$id': 'thresholds' ausente o null; se usan los valores por defecto.",
+            )
+            return Thresholds()
         }
-        return null
+        return Thresholds(
+            minFocus = obj.number("MIN_FOCUS", "min_focus", "focus") ?: Thresholds.DEFAULT_MIN_FOCUS,
+            minBrightness = obj.number("MIN_BRIGHTNESS", "min_brightness", "brightness")
+                ?: Thresholds.DEFAULT_MIN_BRIGHTNESS,
+            maxMotion = obj.number("MAX_MOTION", "max_motion", "motion") ?: Thresholds.DEFAULT_MAX_MOTION,
+        )
     }
 
-    private fun parseRoi(obj: JsonObject): NormalizedRoi {
-        val x = parseDoubleValue(obj, "x")?.toFloat() ?: 0.0f
-        val y = parseDoubleValue(obj, "y")?.toFloat() ?: 0.0f
-        val w = parseDoubleValue(obj, "width", "w")?.toFloat() ?: 1.0f
-        val h = parseDoubleValue(obj, "height", "h")?.toFloat() ?: 1.0f
-        return NormalizedRoi(x = x, y = y, width = w, height = h)
-    }
-
-    ///////////////////////////////////////////////
-    private inline fun <T> parseObjectSafely(
-        stepObj: JsonObject,
-        key: String,
-        stepId: String,
-        diagnostics: MutableList<String>,
-        default: () -> T,
-        parser: (JsonObject) -> T
-    ): T {
-        val element = stepObj[key]
-        val obj = if (element != null && element !is JsonPrimitive) element.jsonObject else null
-
-        return if (obj != null) {
-            parser(obj)
-        } else {
-            diagnostics.add("Advertencia en paso '$stepId': '$key' es null u omiso. Se aplica valor por defecto.")
-            default()
+    private fun parseRoi(obj: JsonObject?, id: String, diagnostics: MutableList<Diagnostic>): NormalizedRoi {
+        if (obj == null) {
+            diagnostics += Diagnostic.warning(
+                "MISSING_ROI",
+                "Paso '$id': 'roi' ausente o null; se usa el ROI completo por defecto.",
+            )
+            return NormalizedRoi()
         }
+        return NormalizedRoi(
+            x = obj.number("x")?.toFloat() ?: 0f,
+            y = obj.number("y")?.toFloat() ?: 0f,
+            width = obj.number("width", "w")?.toFloat() ?: 1f,
+            height = obj.number("height", "h")?.toFloat() ?: 1f,
+        )
     }
 
-    private fun JsonObject.str(vararg keys: String): String? {
-        for (key in keys) {
-            val element = this[key] ?: continue
-            if (element !is JsonPrimitive) continue
-            return element.jsonPrimitive.content
-        }
-        return null
-    }
+    private fun hasTimezone(timestamp: String): Boolean =
+        timestamp.endsWith("Z") || TIMEZONE_OFFSET.containsMatchIn(timestamp)
 
-    private fun JsonObject.num(
-        keys: Array<String>,
-        name: String,
-        stepId: String,
-        default: Double,
-        diagnostics: MutableList<String>
-    ): Double {
-        val value = keys.firstNotNullOfOrNull { key ->
+    // Lee la primera clave presente como texto (soporta casing mixto vía alias).
+    private fun JsonObject.string(vararg keys: String): String? =
+        keys.firstNotNullOfOrNull { (this[it] as? JsonPrimitive)?.content }
+
+    // Lee un número aceptando también el caso "número enviado como string".
+    private fun JsonObject.number(vararg keys: String): Double? =
+        keys.firstNotNullOfOrNull { key ->
             (this[key] as? JsonPrimitive)?.let { it.doubleOrNull ?: it.content.toDoubleOrNull() }
         }
-        if (value == null) {
-            diagnostics.add("Advertencia en paso '$stepId': '$name' no especificado. Se usa por defecto $default.")
-        }
-        return value ?: default
+
+    private fun JsonObject.int(key: String): Int? =
+        (this[key] as? JsonPrimitive)?.let { it.intOrNull ?: it.content.toIntOrNull() }
+
+    companion object {
+        private const val DEFAULT_PLAN_NAME = "Plan sin nombre"
+        private const val DEFAULT_CREATED_AT = "1970-01-01T00:00:00Z"
+        private const val DEFAULT_SCALE_FACTOR = "1.0"
+        private const val DEFAULT_HOLD_FRAMES = 5
+        private val TIMEZONE_OFFSET = Regex("""[+-]\d{2}:?\d{2}$""")
     }
-
-
 }

@@ -3,23 +3,12 @@
   <ManuallySuppressedIssues/>
   <CurrentIssues>
     <ID>CyclomaticComplexMethod:GateStateMachine.kt$GateStateMachine$fun evaluate( metrics: Metrics, plan: CapturePlan, stepIndex: Int = 0 ): GateResult</ID>
-    <ID>CyclomaticComplexMethod:PlanParser.kt$PlanParser$fun parse(jsonString: String): PlanParseResult</ID>
     <ID>LongMethod:CaptureScreen.kt$@Composable fun CaptureScreen( modifier: Modifier = Modifier, viewModel: CaptureViewModel = viewModel() )</ID>
-    <ID>LongMethod:PlanParser.kt$PlanParser$fun parse(jsonString: String): PlanParseResult</ID>
     <ID>LongParameterList:CoordinateMapper.kt$CoordinateMapper$( bufferWidth: Int, bufferHeight: Int, sensorRotation: Int, isMirrored: Boolean = false, viewWidth: Float, viewHeight: Float, scaleMode: ScaleMode = ScaleMode.CROP, normalizedRoi: NormalizedRoi )</ID>
-    <ID>LongParameterList:PlanParser.kt$PlanParser$( stepObj: JsonObject, key: String, stepId: String, diagnostics: MutableList&lt;String&gt;, default: () -&gt; T, parser: (JsonObject) -&gt; T )</ID>
-    <ID>LoopWithTooManyJumpStatements:PlanParser.kt$PlanParser$for</ID>
     <ID>MagicNumber:CoordinateMapper.kt$CoordinateMapper$270</ID>
     <ID>MagicNumber:CoordinateMapper.kt$CoordinateMapper$90</ID>
     <ID>MagicNumber:FixtureFrameSource.kt$FixtureFrameSource$5</ID>
     <ID>MagicNumber:MetricsAnalyzer.kt$MetricsAnalyzer$0xFF</ID>
-    <ID>MagicNumber:PlanParser.kt$PlanParser$5</ID>
-    <ID>MaxLineLength:PlanParser.kt$PlanParser$maxMotion = obj.num(arrayOf("MAX_MOTION", "max_motion", "motion"), "max_motion", stepId, Thresholds.DEFAULT_MAX_MOTION, diagnostics)</ID>
-    <ID>MaxLineLength:PlanParser.kt$PlanParser$minBrightness = obj.num(arrayOf("MIN_BRIGHTNESS", "min_brightness", "brightness"), "min_brightness", stepId, Thresholds.DEFAULT_MIN_BRIGHTNESS, diagnostics)</ID>
-    <ID>MaxLineLength:PlanParser.kt$PlanParser$minFocus = obj.num(arrayOf("MIN_FOCUS", "min_focus", "focus"), "min_focus", stepId, Thresholds.DEFAULT_MIN_FOCUS, diagnostics)</ID>
-    <ID>SwallowedException:PlanParser.kt$PlanParser$e: IllegalArgumentException</ID>
-    <ID>TooGenericExceptionCaught:PlanParser.kt$PlanParser$e: Exception</ID>
     <ID>UnusedParameter:CoordinateMapper.kt$CoordinateMapper$isMirrored: Boolean = false</ID>
-    <ID>UnusedPrivateMember:PlanParser.kt$PlanParser$private fun findStringKey(obj: JsonObject, vararg keys: String): String?</ID>
   </CurrentIssues>
 </SmellBaseline>
