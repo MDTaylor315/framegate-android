@@ -14,15 +14,19 @@ object CoordinateMapper {
         bufferHeight: Int,
         sensorRotation: Int,
         isMirrored: Boolean = false,
+        displayRotation: Int = 0,
         viewWidth: Float,
         viewHeight: Float,
         scaleMode: ScaleMode = ScaleMode.CROP,
         normalizedRoi: NormalizedRoi
     ): CoordinateMapping{
-        val bufLeft = (normalizedRoi.x * bufferWidth).toInt().coerceIn(0, bufferWidth)
-        val bufTop = (normalizedRoi.y * bufferHeight).toInt().coerceIn(0, bufferHeight)
-        val bufRight = ((normalizedRoi.x + normalizedRoi.width) * bufferWidth).toInt().coerceIn(bufLeft, bufferWidth)
-        val bufBottom = ((normalizedRoi.y + normalizedRoi.height) * bufferHeight).toInt().coerceIn(bufTop, bufferHeight)
+        // Se aplica espejo y rotación al ROI antes de proyectarlo.
+        val roi = RoiTransform.transform(normalizedRoi, sensorRotation, displayRotation, isMirrored)
+
+        val bufLeft = (roi.x * bufferWidth).toInt().coerceIn(0, bufferWidth)
+        val bufTop = (roi.y * bufferHeight).toInt().coerceIn(0, bufferHeight)
+        val bufRight = ((roi.x + roi.width) * bufferWidth).toInt().coerceIn(bufLeft, bufferWidth)
+        val bufBottom = ((roi.y + roi.height) * bufferHeight).toInt().coerceIn(bufTop, bufferHeight)
 
         val bufferRect = BufferRect (
             left = bufLeft,
@@ -31,8 +35,9 @@ object CoordinateMapper {
             bottom = bufBottom
         )
 
-        //Por si el celular está en modo horizontal
-         val (effectiveBufferW, effectiveBufferH) = if (sensorRotation == 90 || sensorRotation == 270){
+        // La rotación neta decide si el buffer se ve apaisado (se intercambian W/H).
+        val rotation = RoiTransform.effectiveRotation(sensorRotation, displayRotation)
+        val (effectiveBufferW, effectiveBufferH) = if (RoiTransform.swapsDimensions(rotation)){
              Pair(bufferHeight.toFloat(),bufferWidth.toFloat())
          } else{
              Pair(bufferWidth.toFloat(), bufferHeight.toFloat())
@@ -53,11 +58,11 @@ object CoordinateMapper {
         val offsetX = (viewWidth - scaledW) / 2.0f
         val offsetY = (viewHeight - scaledH) / 2.0f
 
-        // 5. Calculamos la posición del ROI dentro de la vista Compose (para el Canvas)
-        val viewLeft = offsetX + (normalizedRoi.x * scaledW)
-        val viewTop = offsetY + (normalizedRoi.y * scaledH)
-        val viewRight = viewLeft + (normalizedRoi.width * scaledW)
-        val viewBottom = viewTop + (normalizedRoi.height * scaledH)
+        // Posición del ROI (ya transformado) dentro de la vista, para el Canvas.
+        val viewLeft = offsetX + (roi.x * scaledW)
+        val viewTop = offsetY + (roi.y * scaledH)
+        val viewRight = viewLeft + (roi.width * scaledW)
+        val viewBottom = viewTop + (roi.height * scaledH)
         val viewRect = ViewRect(
             left = viewLeft,
             top = viewTop,

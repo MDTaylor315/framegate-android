@@ -3,11 +3,8 @@
   <ManuallySuppressedIssues/>
   <CurrentIssues>
     <ID>LongMethod:CaptureScreen.kt$@Composable fun CaptureScreen( modifier: Modifier = Modifier, viewModel: CaptureViewModel = viewModel() )</ID>
-    <ID>LongParameterList:CoordinateMapper.kt$CoordinateMapper$( bufferWidth: Int, bufferHeight: Int, sensorRotation: Int, isMirrored: Boolean = false, viewWidth: Float, viewHeight: Float, scaleMode: ScaleMode = ScaleMode.CROP, normalizedRoi: NormalizedRoi )</ID>
-    <ID>MagicNumber:CoordinateMapper.kt$CoordinateMapper$270</ID>
-    <ID>MagicNumber:CoordinateMapper.kt$CoordinateMapper$90</ID>
+    <ID>LongParameterList:CoordinateMapper.kt$CoordinateMapper$( bufferWidth: Int, bufferHeight: Int, sensorRotation: Int, isMirrored: Boolean = false, displayRotation: Int = 0, viewWidth: Float, viewHeight: Float, scaleMode: ScaleMode = ScaleMode.CROP, normalizedRoi: NormalizedRoi )</ID>
     <ID>MagicNumber:FixtureFrameSource.kt$FixtureFrameSource$5</ID>
     <ID>MagicNumber:MetricsAnalyzer.kt$MetricsAnalyzer$0xFF</ID>
-    <ID>UnusedParameter:CoordinateMapper.kt$CoordinateMapper$isMirrored: Boolean = false</ID>
   </CurrentIssues>
 </SmellBaseline>
