@@ -9,11 +9,14 @@ import com.example.framegate.domain.gate.GatePhase
 import com.example.framegate.domain.gate.GateReducer
 import com.example.framegate.domain.gate.GateState
 import com.example.framegate.domain.interfaces.FrameSource
+import com.example.framegate.domain.mapping.CoordinateMapper
 import com.example.framegate.domain.model.BufferRect
 import com.example.framegate.domain.model.CapturePlan
 import com.example.framegate.domain.model.CaptureStep
 import com.example.framegate.domain.model.FrameData
 import com.example.framegate.domain.model.Metrics
+import com.example.framegate.domain.model.height
+import com.example.framegate.domain.model.width
 import com.example.framegate.domain.model.NormalizedRoi
 import com.example.framegate.domain.model.StepType
 import com.example.framegate.domain.model.Thresholds
@@ -52,13 +55,17 @@ class CaptureViewModel(
     private val _lastMetrics = MutableStateFlow<Metrics?>(null)
     private val _isCapturing = MutableStateFlow(false)
     private val _perf = MutableStateFlow(PerfStats())
+    private val _overlay = MutableStateFlow<OverlayRect?>(null)
+
+    private var viewSize: Pair<Int, Int>? = null
 
     val uiState: StateFlow<CaptureUiState> = combine(
         _gateState,
         _lastMetrics,
         _isCapturing,
         _perf,
-    ) { gate, metrics, capturing, perf ->
+        _overlay,
+    ) { gate, metrics, capturing, perf, overlay ->
         CaptureUiState(
             gateStatusText = phaseText(gate.phase),
             currentStepIndex = gate.stepIndex,
@@ -68,6 +75,7 @@ class CaptureViewModel(
             motion = metrics?.motion ?: 0f,
             msPerFrame = perf.msPerFrame,
             droppedFrames = perf.dropped,
+            overlayRect = overlay,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -100,8 +108,28 @@ class CaptureViewModel(
         when (event) {
             is CaptureUiEvent.StartCapture -> startCapture()
             is CaptureUiEvent.PauseCapture -> pauseCapture()
-            is CaptureUiEvent.ToggleDiagnostics -> Unit
+            is CaptureUiEvent.ViewSizeChanged -> {
+                viewSize = event.width to event.height
+                recomputeOverlay()
+            }
         }
+    }
+
+    // Calcula el recuadro del overlay con el mapper (nunca en el Composable).
+    private fun recomputeOverlay() {
+        val (w, h) = viewSize ?: return
+        if (w <= 0 || h <= 0) return
+        val step = mockPlan.steps[_gateState.value.stepIndex.coerceIn(0, mockPlan.steps.lastIndex)]
+        val mapping = CoordinateMapper.mapCoordinates(
+            bufferWidth = FRAME_WIDTH,
+            bufferHeight = FRAME_HEIGHT,
+            sensorRotation = 0,
+            viewWidth = w.toFloat(),
+            viewHeight = h.toFloat(),
+            normalizedRoi = step.roi,
+        )
+        val r = mapping.viewRect
+        _overlay.value = OverlayRect(r.left, r.top, r.width, r.height)
     }
 
     private fun startCapture() {
@@ -189,6 +217,8 @@ class CaptureViewModel(
         const val FRAMES_PER_SECOND = 3.3f
         const val SUBSCRIPTION_TIMEOUT_MS = 5000L
         const val NANOS_PER_MILLI = 1_000_000.0
+        const val FRAME_WIDTH = 1920
+        const val FRAME_HEIGHT = 1080
         const val MIN_BRIGHTNESS = 50.0
         const val REQUIRED_HOLD_FRAMES = 2
         const val ROI_X = 0.25f

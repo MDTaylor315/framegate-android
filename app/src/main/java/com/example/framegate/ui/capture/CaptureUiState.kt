@@ -11,4 +11,10 @@ data class CaptureUiState(
     // Rendimiento del hot path.
     val msPerFrame: Float = 0f,
     val droppedFrames: Int = 0,
+    // Rectángulo del overlay en coordenadas de vista, calculado por el mapper.
+    val overlayRect: OverlayRect? = null,
 )
+
+/** Rectángulo en píxeles de pantalla, listo para dibujar (sin más cálculo en la UI). */
+data class OverlayRect(val left: Float, val top: Float, val width: Float, val height: Float)
+
