@@ -4,13 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.framegate.di.AppGraph
 import com.example.framegate.domain.analyzer.MetricsAnalyzer
-import com.example.framegate.domain.fixtures.FixtureFrameSource
+import com.example.framegate.domain.fixtures.ReplayFrameSource
 import com.example.framegate.domain.gate.GatePhase
 import com.example.framegate.domain.gate.GateReducer
 import com.example.framegate.domain.gate.GateState
+import com.example.framegate.domain.interfaces.FrameSource
 import com.example.framegate.domain.model.BufferRect
 import com.example.framegate.domain.model.CapturePlan
 import com.example.framegate.domain.model.CaptureStep
+import com.example.framegate.domain.model.FrameData
 import com.example.framegate.domain.model.Metrics
 import com.example.framegate.domain.model.NormalizedRoi
 import com.example.framegate.domain.model.StepType
@@ -25,26 +27,49 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-// El loop de captura es provisional; el hot path real llega en fases posteriores.
+/**
+ * El loop pide frames a [FrameSource], los mide y alimenta los flujos fuente
+ * (_gateState, _lastMetrics, _isCapturing). El uiState se DERIVA de esos flujos
+ * con combine/stateIn; no se muta a mano.
+ */
 class CaptureViewModel(
     private val queueStore: JournalQueueStore = AppGraph.queueStore,
     private val captureStore: CaptureStore = AppGraph.captureStore,
     private val uploadEngine: UploadEngine = AppGraph.uploadEngine,
+    private val frameSource: FrameSource = ReplayFrameSource.uniform(),
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(CaptureUiState())
-    val uiState: StateFlow<CaptureUiState> = _uiState.asStateFlow()
+
+    private val _gateState = MutableStateFlow(GateState())
+    private val _lastMetrics = MutableStateFlow<Metrics?>(null)
+    private val _isCapturing = MutableStateFlow(false)
+
+    val uiState: StateFlow<CaptureUiState> = combine(
+        _gateState,
+        _lastMetrics,
+        _isCapturing,
+    ) { gate, metrics, capturing ->
+        CaptureUiState(
+            gateStatusText = phaseText(gate.phase),
+            currentStepIndex = gate.stepIndex,
+            fps = if (capturing) FRAMES_PER_SECOND else 0f,
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT_MS),
+        initialValue = CaptureUiState(),
+    )
 
     private val _uiEffect = Channel<CaptureUiEffect>(Channel.BUFFERED)
     val uiEffect = _uiEffect.receiveAsFlow()
 
-    private var gateState = GateState()
     private var captureJob: Job? = null
 
     private val mockPlan = CapturePlan(
@@ -67,36 +92,40 @@ class CaptureViewModel(
         when (event) {
             is CaptureUiEvent.StartCapture -> startCapture()
             is CaptureUiEvent.PauseCapture -> pauseCapture()
-            is CaptureUiEvent.ToggleDiagnostics -> toggleDiagnostics()
+            is CaptureUiEvent.ToggleDiagnostics -> Unit
         }
     }
 
     private fun startCapture() {
         if (captureJob?.isActive == true) return
 
-        gateState = GateState()
+        _gateState.value = GateState()
+        _isCapturing.value = true
         sendEffect(CaptureUiEffect.ShowToast("Loop de captura iniciado"))
+
         captureJob = viewModelScope.launch {
             var frameCount = 0
             while (true) {
-                frameCount++
                 delay(FRAME_INTERVAL_MS)
-
-                val frameBytes = FixtureFrameSource.createUniformFrame(FRAME_SIZE, FRAME_SIZE, VALID_LUMA)
-                val bufferRect = BufferRect(0, 0, FRAME_SIZE, FRAME_SIZE)
-                val metrics = MetricsAnalyzer.analyze(frameBytes, FRAME_SIZE, bufferRect)
-
-                gateState = GateReducer.reduce(gateState, metrics, mockPlan)
-                _uiState.update { it.copy(gateStatusText = phaseText(gateState.phase)) }
-
-                if (gateState.phase is GatePhase.Armed) {
-                    val step = mockPlan.steps[gateState.stepIndex]
-                    queueStore.put(captureItem(frameCount, step, metrics, frameBytes))
-                    launch { uploadEngine.drain() }
-                    sendEffect(CaptureUiEffect.ShowToast("Fotograma capturado y encolado"))
-                    gateState = GateReducer.advanceToNextStep(GateReducer.fire(gateState), mockPlan)
-                }
+                val frame = frameSource.getNextFrame() ?: break
+                frameCount++
+                processFrame(frame, frameCount)
             }
+        }
+    }
+
+    private fun processFrame(frame: FrameData, frameCount: Int) {
+        val roi = BufferRect(0, 0, frame.width, frame.height)
+        val metrics = MetricsAnalyzer.analyze(frame.yBuffer, frame.rowStride, roi)
+        _lastMetrics.value = metrics
+        _gateState.value = GateReducer.reduce(_gateState.value, metrics, mockPlan)
+
+        if (_gateState.value.phase is GatePhase.Armed) {
+            val step = mockPlan.steps[_gateState.value.stepIndex]
+            queueStore.put(captureItem(frameCount, step, metrics, frame.yBuffer))
+            viewModelScope.launch { uploadEngine.drain() }
+            sendEffect(CaptureUiEffect.ShowToast("Fotograma capturado y encolado"))
+            _gateState.value = GateReducer.advanceToNextStep(GateReducer.fire(_gateState.value), mockPlan)
         }
     }
 
@@ -128,13 +157,9 @@ class CaptureViewModel(
 
     private fun pauseCapture() {
         captureJob?.cancel()
-        gateState = GateState()
-        _uiState.update { it.copy(gateStatusText = "Pausado") }
+        _gateState.value = GateState()
+        _isCapturing.value = false
         sendEffect(CaptureUiEffect.ShowToast("Loop de captura pausado"))
-    }
-
-    private fun toggleDiagnostics() {
-        _uiState.update { it.copy(showDiagnosticsPanel = !it.showDiagnosticsPanel) }
     }
 
     private fun sendEffect(effect: CaptureUiEffect) {
@@ -143,8 +168,8 @@ class CaptureViewModel(
 
     private companion object {
         const val FRAME_INTERVAL_MS = 300L
-        const val FRAME_SIZE = 100
-        const val VALID_LUMA: Byte = 100
+        const val FRAMES_PER_SECOND = 3.3f
+        const val SUBSCRIPTION_TIMEOUT_MS = 5000L
         const val MIN_BRIGHTNESS = 50.0
         const val REQUIRED_HOLD_FRAMES = 2
         const val ROI_X = 0.25f
