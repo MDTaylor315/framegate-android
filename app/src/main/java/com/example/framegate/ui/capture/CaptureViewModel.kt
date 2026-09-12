@@ -23,6 +23,7 @@ import com.example.framegate.domain.queue.QueueItem
 import com.example.framegate.domain.queue.SerializableMetrics
 import com.example.framegate.domain.queue.SerializableRoi
 import com.example.framegate.domain.queue.UploadEngine
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -50,12 +51,14 @@ class CaptureViewModel(
     private val _gateState = MutableStateFlow(GateState())
     private val _lastMetrics = MutableStateFlow<Metrics?>(null)
     private val _isCapturing = MutableStateFlow(false)
+    private val _perf = MutableStateFlow(PerfStats())
 
     val uiState: StateFlow<CaptureUiState> = combine(
         _gateState,
         _lastMetrics,
         _isCapturing,
-    ) { gate, metrics, capturing ->
+        _perf,
+    ) { gate, metrics, capturing, perf ->
         CaptureUiState(
             gateStatusText = phaseText(gate.phase),
             currentStepIndex = gate.stepIndex,
@@ -63,6 +66,8 @@ class CaptureViewModel(
             focus = metrics?.focus ?: 0f,
             brightness = metrics?.meanLuma ?: 0f,
             motion = metrics?.motion ?: 0f,
+            msPerFrame = perf.msPerFrame,
+            droppedFrames = perf.dropped,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -106,7 +111,8 @@ class CaptureViewModel(
         _isCapturing.value = true
         sendEffect(CaptureUiEffect.ShowToast("Loop de captura iniciado"))
 
-        captureJob = viewModelScope.launch {
+        // El análisis (trabajo de CPU) corre fuera del main thread.
+        captureJob = viewModelScope.launch(Dispatchers.Default) {
             var frameCount = 0
             while (true) {
                 delay(FRAME_INTERVAL_MS)
@@ -119,7 +125,15 @@ class CaptureViewModel(
 
     private fun processFrame(frame: FrameData, frameCount: Int) {
         val roi = BufferRect(0, 0, frame.width, frame.height)
+
+        val startNs = System.nanoTime()
         val metrics = MetricsAnalyzer.analyze(frame.yBuffer, frame.rowStride, roi)
+        val elapsedMs = (System.nanoTime() - startNs) / NANOS_PER_MILLI
+
+        // Si analizar tardó más que el intervalo entre frames, se habría perdido uno.
+        val dropped = _perf.value.dropped + if (elapsedMs > FRAME_INTERVAL_MS) 1 else 0
+        _perf.value = PerfStats(msPerFrame = elapsedMs.toFloat(), dropped = dropped)
+
         _lastMetrics.value = metrics
         _gateState.value = GateReducer.reduce(_gateState.value, metrics, mockPlan)
 
@@ -162,6 +176,7 @@ class CaptureViewModel(
         captureJob?.cancel()
         _gateState.value = GateState()
         _isCapturing.value = false
+        _perf.value = PerfStats()
         sendEffect(CaptureUiEffect.ShowToast("Loop de captura pausado"))
     }
 
@@ -173,6 +188,7 @@ class CaptureViewModel(
         const val FRAME_INTERVAL_MS = 300L
         const val FRAMES_PER_SECOND = 3.3f
         const val SUBSCRIPTION_TIMEOUT_MS = 5000L
+        const val NANOS_PER_MILLI = 1_000_000.0
         const val MIN_BRIGHTNESS = 50.0
         const val REQUIRED_HOLD_FRAMES = 2
         const val ROI_X = 0.25f
@@ -181,3 +197,5 @@ class CaptureViewModel(
         const val ROI_H = 0.40f
     }
 }
+
+private data class PerfStats(val msPerFrame: Float = 0f, val dropped: Int = 0)

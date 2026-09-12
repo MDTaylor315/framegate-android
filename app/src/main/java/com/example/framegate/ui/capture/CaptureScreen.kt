@@ -121,7 +121,9 @@ fun CaptureScreen(
             style = MaterialTheme.typography.bodyMedium
         )
         Text(
-            text = "FPS: ${"%.1f".format(uiState.fps)}",
+            text = "FPS: ${"%.1f".format(uiState.fps)}  " +
+                "ms/frame: ${"%.2f".format(uiState.msPerFrame)}  " +
+                "descartados: ${uiState.droppedFrames}",
             style = MaterialTheme.typography.bodySmall
         )
         Spacer(modifier = Modifier.height(8.dp))

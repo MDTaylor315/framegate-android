@@ -8,4 +8,7 @@ data class CaptureUiState(
     val focus: Float = 0f,
     val brightness: Float = 0f,
     val motion: Float = 0f,
+    // Rendimiento del hot path.
+    val msPerFrame: Float = 0f,
+    val droppedFrames: Int = 0,
 )
