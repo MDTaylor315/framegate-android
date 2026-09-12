@@ -1,61 +1,83 @@
 package com.example.framegate.domain.queue
 
+import com.example.framegate.domain.interfaces.Clock
 import com.example.framegate.domain.interfaces.UploadTransport
 import com.example.framegate.domain.model.UploadResult
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
-class UploadEngine (
-    private val queueStore: PersistentQueueStore,
-    private val uploadTransport: UploadTransport,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
-){
-    private var processingJob: Job? = null
-
-    fun startProcessing(){
-        if(processingJob?.isActive == true) return
-
-        processingJob = scope.launch {
-            processPendingItems()
+/**
+ * Drena la cola en serie aplicando el contrato del servidor: 201/409 = éxito,
+ * 400/422 = fallo terminal sin reintento, 500/503/timeout = reintento con
+ * backoff. El [clock] se inyecta para testear el backoff sin esperas reales.
+ */
+class UploadEngine(
+    private val store: JournalQueueStore,
+    private val transport: UploadTransport,
+    private val clock: Clock,
+    private val retryPolicy: RetryPolicy = RetryPolicy(),
+    private val random: () -> Double = Math::random,
+) {
+    suspend fun drain() {
+        for (item in store.getPending()) {
+            processItem(item)
         }
     }
 
-    suspend fun processPendingItems(){
-        val pendingItems = queueStore.getPendingItems()
+    private suspend fun processItem(initial: QueueItem) {
+        var current = initial
+        var draining = true
 
-        for(item in pendingItems){
-            queueStore.updateStatus(item.id, QueueItemStatus.UPLOADING)
-
-            val manifestJson = ManifestBuilder.buildManifestJson(
-                frameId = item.id,
-                planName = item.planName,
-                timestampIso = item.timestampIso,
-                metrics = item.metrics
+        while (draining) {
+            // Se persiste el intento antes de la red: si el proceso muere aquí,
+            // el item queda UPLOADING y al relanzar se reencola.
+            current = current.copy(
+                status = QueueItemStatus.UPLOADING,
+                attempts = current.attempts + 1,
             )
+            store.put(current)
 
-            val result = uploadTransport.uploadCapture(
-                idempotencyKey = item.id,
-                manifestJson = manifestJson,
-                jpegBytes = ByteArray(0)
+            val result = transport.uploadCapture(
+                idempotencyKey = current.idempotencyKey,
+                manifestJson = ManifestBuilder.build(current),
+                jpegBytes = ByteArray(0),
             )
 
             when (result) {
-                is UploadResult.Success ->{
-                    queueStore.updateStatus(item.id, QueueItemStatus.COMPLETED)
+                is UploadResult.Success -> {
+                    store.put(current.copy(status = QueueItemStatus.COMPLETED, lastError = null))
+                    draining = false
                 }
-                is UploadResult.TransientError -> {
-                    queueStore.updateStatus(item.id, QueueItemStatus.FAILED, result.message)
-                }
+
                 is UploadResult.ClientError -> {
-                    queueStore.updateStatus(item.id, QueueItemStatus.FAILED, result.message)
+                    store.put(current.toFailed("${result.statusCode}: ${result.message}"))
+                    draining = false
+                }
+
+                is UploadResult.TransientError -> {
+                    if (retryPolicy.canRetry(current.attempts)) {
+                        store.put(
+                            current.copy(
+                                status = QueueItemStatus.PENDING,
+                                lastError = "${result.statusCode}: ${result.message}",
+                            )
+                        )
+                        clock.sleep(retryPolicy.delayForAttempt(current.attempts, random))
+                        current = store.get(current.id) ?: current.also { draining = false }
+                    } else {
+                        store.put(current.toFailed("Intentos agotados. Último error ${result.statusCode}"))
+                        draining = false
+                    }
                 }
             }
         }
     }
 
-    fun stopProcessing(){
-        processingJob?.cancel()
+    private fun QueueItem.toFailed(error: String): QueueItem =
+        copy(status = QueueItemStatus.FAILED, lastError = error)
+
+    fun requestManualRetry(id: String) {
+        val item = store.get(id) ?: return
+        if (item.status == QueueItemStatus.FAILED) {
+            store.put(item.copy(status = QueueItemStatus.PENDING, lastError = null))
+        }
     }
 }

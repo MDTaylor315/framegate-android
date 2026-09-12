@@ -1,76 +1,146 @@
 package com.example.framegate.domain.queue
 
-import com.example.framegate.domain.model.Metrics
-import junit.framework.TestCase.assertEquals
-import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 
 class UploadEngineTest {
-    private lateinit var queueStore: PersistentQueueStore
+
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
+    private lateinit var journalFile: File
 
     @Before
-    fun setUp(){
-        queueStore = PersistentQueueStore()
+    fun setUp() {
+        journalFile = tempFolder.newFile("journal.ndjson")
+    }
+
+    private fun newStore() = JournalQueueStore(journalFile)
+
+    private fun sampleItem(id: String, key: String = "key-$id") = QueueItem(
+        id = id,
+        idempotencyKey = key,
+        timestampEpochMillis = 1_000L,
+        planName = "Plan Test",
+        scaleFactorRaw = "1.0",
+        orientation = 0,
+        roi = SerializableRoi(0f, 0f, 1f, 1f),
+        metrics = SerializableMetrics(100f, 20f, 100f),
+    )
+
+    @Test
+    fun `respuesta 201 marca el item como COMPLETED`() = runBlocking {
+        val store = newStore()
+        store.put(sampleItem("a"))
+        val engine = UploadEngine(store, FakeUploadTransport(), FakeClock())
+
+        engine.drain()
+
+        assertEquals(QueueItemStatus.COMPLETED, store.get("a")!!.status)
     }
 
     @Test
-    fun `procesar envio exitoso cambia el estado a COMPLETED`() = runBlocking {
-        val successTransport = SimulatedUploadTransport(simulatedDelayMs = 10L, failureProbability = 0.0f)
-        val engine = UploadEngine(queueStore, successTransport)
+    fun `409 se trata como exito y nunca reintenta`() = runBlocking {
+        val store = newStore()
+        store.put(sampleItem("a"))
+        val script = FailureScript(mapOf("key-a" to listOf(Outcome.Conflict)))
+        val transport = FakeUploadTransport(script)
+        val engine = UploadEngine(store, transport, FakeClock())
 
-        // Captura de prueba
-        val item = QueueItem(
-            id = "cap_001",
-            timestampIso = "2026-09-11T12:00:00Z",
-            planName = "Plan Test",
-            metrics = Metrics(meanLuma = 100f, stdDev = 20f, rms = 100f)
+        engine.drain()
+
+        assertEquals(QueueItemStatus.COMPLETED, store.get("a")!!.status)
+        // Un solo intento: 409 no dispara reintento.
+        assertEquals(1, transport.requestLog.count { it.idempotencyKey == "key-a" })
+    }
+
+    @Test
+    fun `error de cliente 422 es terminal sin reintento automatico`() = runBlocking {
+        val store = newStore()
+        store.put(sampleItem("a"))
+        val script = FailureScript(mapOf("key-a" to listOf(Outcome.Client(422))))
+        val transport = FakeUploadTransport(script)
+        val engine = UploadEngine(store, transport, FakeClock())
+
+        engine.drain()
+
+        assertEquals(QueueItemStatus.FAILED, store.get("a")!!.status)
+        assertEquals(1, transport.requestLog.count { it.idempotencyKey == "key-a" })
+    }
+
+    @Test
+    fun `error transitorio reintenta con backoff y luego tiene exito`() = runBlocking {
+        val store = newStore()
+        store.put(sampleItem("a"))
+        // Falla 500 dos veces, luego almacena.
+        val script = FailureScript(
+            mapOf("key-a" to listOf(Outcome.Transient(500), Outcome.Transient(503), Outcome.Stored))
         )
+        val transport = FakeUploadTransport(script)
+        val clock = FakeClock()
+        val engine = UploadEngine(store, transport, clock, RetryPolicy(), random = { 0.0 })
 
-        queueStore.enqueue(item)
-        engine.processPendingItems()
+        engine.drain()
 
-        val items = queueStore.getAllItems()
-        assertEquals(1, items.size)
-        assertEquals(QueueItemStatus.COMPLETED, items.first().status)
+        assertEquals(QueueItemStatus.COMPLETED, store.get("a")!!.status)
+        assertEquals(3, transport.requestLog.count { it.idempotencyKey == "key-a" })
+        // Hubo backoff (esperó tiempo virtual, sin dormir de verdad).
+        assertTrue(clock.totalSleptMillis > 0)
     }
 
     @Test
-    fun `procesar envio fallido cambia el estado a FAILED e incrementa reintentos`() = runBlocking {
-        // 100% de falla simulada (error 503)
-        val failureTransport = SimulatedUploadTransport(simulatedDelayMs = 10L, failureProbability = 1.0f)
-        val engine = UploadEngine(queueStore, failureTransport)
-        val item = QueueItem(
-            id = "cap_002",
-            timestampIso = "2026-09-11T12:00:00Z",
-            planName = "Plan Test",
-            metrics = Metrics(meanLuma = 100f, stdDev = 20f, rms = 100f)
-        )
-        queueStore.enqueue(item)
+    fun `al agotar intentos el item queda FAILED terminal`() = runBlocking {
+        val store = newStore()
+        store.put(sampleItem("a"))
+        // Siempre 503: nunca almacena.
+        val script = FailureScript(mapOf("key-a" to List(10) { Outcome.Transient(503) }))
+        val transport = FakeUploadTransport(script)
+        val engine = UploadEngine(store, transport, FakeClock(), RetryPolicy(maxAttempts = 3), random = { 0.0 })
 
-        engine.processPendingItems()
+        engine.drain()
 
-        val items = queueStore.getAllItems()
-        assertEquals(1, items.size)
-        assertEquals(QueueItemStatus.FAILED, items.first().status)
-        assertEquals(1, items.first().retryCount)
-        assertTrue(items.first().lastError?.contains("503") == true)
+        assertEquals(QueueItemStatus.FAILED, store.get("a")!!.status)
+        assertEquals(3, transport.requestLog.count { it.idempotencyKey == "key-a" })
     }
 
     @Test
-    fun `clearCompleted remueve unicamente los elementos completados`() = runBlocking {
-        val successTransport = SimulatedUploadTransport(simulatedDelayMs = 10L, failureProbability = 0.0f)
-        val engine = UploadEngine(queueStore, successTransport)
-        val item1 = QueueItem("cap_001", "2026-09-11T12:00:00Z", "Plan Test", Metrics(100f, 10f, 100f))
-        val item2 = QueueItem("cap_002", "2026-09-11T12:00:00Z", "Plan Test", Metrics(100f, 10f, 100f))
-        queueStore.enqueue(item1)
-        queueStore.enqueue(item2)
+    fun `sobrevive a muerte del proceso y envia exactamente una vez`() = runBlocking {
+        // 1) Primera "vida": encolar y simular que el proceso muere mientras subía.
+        val store1 = newStore()
+        store1.put(sampleItem("a"))
+        // Forzar estado UPLOADING en el journal (subida en vuelo interrumpida).
+        store1.put(store1.get("a")!!.copy(status = QueueItemStatus.UPLOADING, attempts = 1))
 
-        engine.processPendingItems()
+        // 2) Relanzar: un nuevo store relee el MISMO journal.
+        val store2 = JournalQueueStore(journalFile)
+        // El item in-flight fue degradado a PENDING.
+        assertEquals(QueueItemStatus.PENDING, store2.get("a")!!.status)
 
-        queueStore.clearCompleted()
+        val transport = FakeUploadTransport()
+        val engine = UploadEngine(store2, transport, FakeClock())
+        engine.drain()
 
-        assertTrue(queueStore.getAllItems().isEmpty())
+        assertEquals(QueueItemStatus.COMPLETED, store2.get("a")!!.status)
+        // Nada duplicado: el servidor almacenó la clave una sola vez.
+        assertEquals(1, transport.requestLog.count { it.idempotencyKey == "key-a" })
+    }
+
+    @Test
+    fun `retry manual reactiva un item FAILED`() = runBlocking {
+        val store = newStore()
+        store.put(sampleItem("a").copy(status = QueueItemStatus.FAILED, lastError = "422"))
+        val engine = UploadEngine(store, FakeUploadTransport(), FakeClock())
+
+        engine.requestManualRetry("a")
+        assertEquals(QueueItemStatus.PENDING, store.get("a")!!.status)
+
+        engine.drain()
+        assertEquals(QueueItemStatus.COMPLETED, store.get("a")!!.status)
     }
 }

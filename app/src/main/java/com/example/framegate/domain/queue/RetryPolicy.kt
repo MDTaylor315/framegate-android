@@ -1,0 +1,33 @@
+package com.example.framegate.domain.queue
+
+import kotlin.math.min
+import kotlin.math.pow
+
+/**
+ * Backoff exponencial con jitter, delay capado e intentos capados. El jitter se
+ * inyecta como [random] para que los tests sean deterministas.
+ */
+class RetryPolicy(
+    private val baseDelayMillis: Long = DEFAULT_BASE_DELAY_MILLIS,
+    private val maxDelayMillis: Long = DEFAULT_MAX_DELAY_MILLIS,
+    val maxAttempts: Int = DEFAULT_MAX_ATTEMPTS,
+    private val jitterFactor: Double = DEFAULT_JITTER_FACTOR,
+) {
+    fun canRetry(attempts: Int): Boolean = attempts < maxAttempts
+
+    fun delayForAttempt(attempt: Int, random: () -> Double): Long {
+        require(attempt >= 1) { "attempt debe ser >= 1, fue $attempt" }
+
+        val exponential = baseDelayMillis * 2.0.pow(attempt - 1)
+        val capped = min(exponential, maxDelayMillis.toDouble())
+        val jitter = capped * jitterFactor * random()
+        return (capped + jitter).toLong()
+    }
+
+    companion object {
+        const val DEFAULT_BASE_DELAY_MILLIS = 500L
+        const val DEFAULT_MAX_DELAY_MILLIS = 30_000L
+        const val DEFAULT_MAX_ATTEMPTS = 5
+        const val DEFAULT_JITTER_FACTOR = 0.5
+    }
+}
