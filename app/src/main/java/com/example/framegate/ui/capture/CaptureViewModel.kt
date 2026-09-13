@@ -131,17 +131,15 @@ class CaptureViewModel(
 
         // El análisis (trabajo de CPU) corre fuera del main thread.
         captureJob = viewModelScope.launch(Dispatchers.Default) {
-            var frameCount = 0
             while (true) {
                 delay(FRAME_INTERVAL_MS)
                 val frame = frameSource.getNextFrame() ?: break
-                frameCount++
-                processFrame(frame, frameCount)
+                processFrame(frame)
             }
         }
     }
 
-    private fun processFrame(frame: FrameData, frameCount: Int) {
+    private fun processFrame(frame: FrameData) {
         val roi = BufferRect(0, 0, frame.width, frame.height)
 
         val startNs = System.nanoTime()
@@ -157,15 +155,17 @@ class CaptureViewModel(
 
         if (_gateState.value.phase is GatePhase.Armed) {
             val step = plan.steps[_gateState.value.stepIndex]
-            queueStore.put(captureItem(frameCount, step, metrics, frame.yBuffer))
+            queueStore.put(captureItem(step, metrics, frame.yBuffer))
             viewModelScope.launch { uploadEngine.drain() }
             sendEffect(CaptureUiEffect.ShowToast("Fotograma capturado y encolado"))
             _gateState.value = GateReducer.advanceToNextStep(GateReducer.fire(_gateState.value), plan)
         }
     }
 
-    private fun captureItem(frameCount: Int, step: CaptureStep, metrics: Metrics, bytes: ByteArray): QueueItem {
-        val id = "cap_$frameCount"
+    private fun captureItem(step: CaptureStep, metrics: Metrics, bytes: ByteArray): QueueItem {
+        // Id único por registro (no derivado del contador de frame, que reinicia por
+        // corrida y colisionaría al reencolar o relanzar la app).
+        val id = "cap_${UUID.randomUUID()}"
         // Se escribe el artefacto en disco ANTES de encolar el registro.
         val artifactPath = captureStore.write(id, bytes)
         return QueueItem(
