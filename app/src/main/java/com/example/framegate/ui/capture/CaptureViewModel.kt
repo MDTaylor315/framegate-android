@@ -45,7 +45,7 @@ class CaptureViewModel(
     private val queueStore: JournalQueueStore = AppGraph.queueStore,
     private val captureStore: CaptureStore = AppGraph.captureStore,
     private val uploadEngine: UploadEngine = AppGraph.uploadEngine,
-    private val frameSource: FrameSource = ReplayFrameSource.uniform(),
+    private val frameSource: FrameSource = ReplayFrameSource.assessment(),
 ) : ViewModel() {
 
     private val _gateState = MutableStateFlow(GateState())

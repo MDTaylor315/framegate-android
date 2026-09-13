@@ -22,21 +22,57 @@ class ReplayFrameSource(private val frames: List<FrameData>) : FrameSource {
     companion object {
         private const val DEFAULT_SIZE = 100
         private const val VALID_LUMA: Byte = 100
+        private const val ASSESSMENT_SIZE = 64
+        private const val BLOCK = 6
+        private const val DARK_LUMA: Byte = 20
+        private const val HALF_LEFT: Byte = 10
+        private const val HALF_RIGHT: Byte = 35
+        private const val MID_LUMA: Byte = 120
+        private const val STRIPE_LO: Byte = 40
+        private const val STRIPE_HI = 210.toByte()
 
         /** Fuente simple con un frame uniforme válido, para la demo. */
         fun uniform(): ReplayFrameSource {
             val bytes = FixtureFrameSource.createUniformFrame(DEFAULT_SIZE, DEFAULT_SIZE, VALID_LUMA)
-            val frame = FrameData(
-                width = DEFAULT_SIZE,
-                height = DEFAULT_SIZE,
-                rowStride = DEFAULT_SIZE,
-                pixelStride = 1,
-                sensorRotation = 0,
-                isMirrored = false,
-                yBuffer = bytes,
-                timestampEpochMs = 0L,
-            )
-            return ReplayFrameSource(listOf(frame))
+            return ReplayFrameSource(listOf(frameOf(bytes, DEFAULT_SIZE)))
         }
+
+        /**
+         * Secuencia de 24 frames del assessment (shaky/dark, transición, sharp/centred,
+         * sharp-in-one-quadrant). Es la ruta de revisión principal; los verdicts esperados
+         * están en expected_verdicts.csv. Frames y métricas documentados en metrics_reference.md.
+         */
+        fun assessment(): ReplayFrameSource {
+            val s = ASSESSMENT_SIZE
+            val frames = buildList {
+                repeat(BLOCK) { i -> add(frameOf(darkFrame(s, i), s)) }
+                repeat(BLOCK) { add(frameOf(FixtureFrameSource.createUniformFrame(s, s, MID_LUMA), s)) }
+                repeat(BLOCK) { add(frameOf(FixtureFrameSource.createStripeFrame(s, s, STRIPE_LO, STRIPE_HI), s)) }
+                repeat(BLOCK) { add(frameOf(quadrantFrame(s), s)) }
+            }
+            return ReplayFrameSource(frames)
+        }
+
+        // Bloque oscuro/movido: uniforme y mitades alternan para generar movimiento.
+        private fun darkFrame(size: Int, index: Int): ByteArray =
+            if (index % 2 == 0) {
+                FixtureFrameSource.createUniformFrame(size, size, DARK_LUMA)
+            } else {
+                FixtureFrameSource.createHalfFrame(size, size, HALF_LEFT, HALF_RIGHT)
+            }
+
+        private fun quadrantFrame(size: Int): ByteArray =
+            FixtureFrameSource.createQuadrantSharpFrame(size, size, MID_LUMA, STRIPE_LO, STRIPE_HI)
+
+        private fun frameOf(bytes: ByteArray, size: Int): FrameData = FrameData(
+            width = size,
+            height = size,
+            rowStride = size,
+            pixelStride = 1,
+            sensorRotation = 0,
+            isMirrored = false,
+            yBuffer = bytes,
+            timestampEpochMs = 0L,
+        )
     }
 }

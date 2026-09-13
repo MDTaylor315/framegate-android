@@ -68,3 +68,27 @@ Si el buffer está vacío, `rowStride <= 0`, el ROI es degenerado o `pixelStride
 
 El manifest redondea `focus`, `meanLuma`, `clippedFraction` y `motion` a 3 decimales.
 El gate evalúa con los valores sin redondear.
+
+## Secuencia de 24 frames y expected_verdicts.csv
+
+Los 24 frames son sintéticos y deterministas (64x64, rowStride 64, pixelStride 1),
+construidos por regla para poder calcular las métricas a mano. El
+`expected_verdicts.csv` deriva de estas fórmulas, no de la salida del código.
+
+Thresholds del CSV: `focusRatio = 0.6`, `minBrightness = 50`, `maxMotion = 15`.
+`focus_ok` usa el baseline acumulado (máximo de foco visto hasta ese frame),
+igual que el gate. `motion` del frame 0 es 0 (no hay frame anterior).
+
+Arquetipos (secuencia continua de captura), con su ROI:
+
+| Frames | Arquetipo | Patrón | ROI |
+|---|---|---|---|
+| 0–5 | shaky/dark | luma baja (uniforme 20 / mitades 10-35 alternadas) | completo |
+| 6–11 | transición | luma sube a 120, uniforme (sin nitidez) | completo |
+| 12–17 | sharp/centred | franjas verticales 40/210 (bordes marcados) | completo |
+| 18–23 | sharp-in-one-quadrant | franjas solo en el cuadrante superior-izquierdo, fondo plano 120 | (0,0,0.5,0.5) |
+
+El bloque sharp-in-one-quadrant se mide con un ROI que cae sobre el cuadrante
+nítido: foco alto (~27093). El mismo frame medido con ROI completo daría foco
+bajo (~6873), porque el cuadrante nítido se diluye en el fondo plano. Esa
+diferencia demuestra que la medición respeta el ROI y no el frame entero.
