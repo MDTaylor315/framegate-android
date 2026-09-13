@@ -67,7 +67,7 @@ class ExpectedVerdictsTest {
 
             baseline = maxOf(baseline, metrics.focus)
             val focusOk = metrics.focus >= baseline * FOCUS_RATIO
-            val brightnessOk = metrics.meanLuma >= MIN_BRIGHTNESS
+            val brightnessOk = metrics.meanLuma >= MIN_BRIGHTNESS && metrics.clippedFraction <= MAX_CLIPPED
             val motionOk = metrics.motion <= MAX_MOTION
             assertEquals("frame ${row.frame} focus_ok", row.focusOk, focusOk)
             assertEquals("frame ${row.frame} brightness_ok", row.brightnessOk, brightnessOk)
@@ -96,6 +96,7 @@ class ExpectedVerdictsTest {
         const val FOCUS_RATIO = 0.6f
         const val MIN_BRIGHTNESS = 50f
         const val MAX_MOTION = 15f
+        const val MAX_CLIPPED = 0.5f
         const val EXPECTED_COUNT = 24
     }
 }

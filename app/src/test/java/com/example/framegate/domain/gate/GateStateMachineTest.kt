@@ -26,6 +26,9 @@ class GateStateMachineTest {
     private fun blurry() = Metrics(focus = 1f, meanLuma = 100f, clippedFraction = 0f, motion = 2f)
     private fun shaky() = Metrics(focus = 100f, meanLuma = 100f, clippedFraction = 0f, motion = 40f)
 
+    // Luma suficiente pero muchos píxeles quemados/aplastados: el brillo no es usable.
+    private fun clipped() = Metrics(focus = 100f, meanLuma = 100f, clippedFraction = 0.9f, motion = 2f)
+
     @Test
     fun `un frame bueno pasa a Holding 1 de N`() {
         val state = GateReducer.reduce(GateState(), good(), plan)
@@ -52,6 +55,12 @@ class GateStateMachineTest {
     fun `un frame movido bloquea reportando MOTION`() {
         val state = GateReducer.reduce(GateState(), shaky(), plan)
         assertEquals(setOf(Measurement.MOTION), (state.phase as GatePhase.Blocked).failing)
+    }
+
+    @Test
+    fun `un frame con demasiado clipping bloquea reportando BRIGHTNESS pese a buena luma`() {
+        val state = GateReducer.reduce(GateState(), clipped(), plan)
+        assertEquals(setOf(Measurement.BRIGHTNESS), (state.phase as GatePhase.Blocked).failing)
     }
 
     @Test

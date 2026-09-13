@@ -49,6 +49,10 @@ estaClippeado = (luma <= 16) OR (luma >= 239)
 clippedFraction = nºClippeados / N          # rango 0..1
 ```
 
+El verdict de brillo del gate exige ambas cosas: `meanLuma >= minBrightness` **y**
+`clippedFraction <= maxClippedFraction` (default 0.5). Un frame con luma media suficiente
+pero muchos píxeles quemados/aplastados no se considera un brillo usable.
+
 ## Movimiento (diferencia media absoluta)
 
 Contra el mismo índice del frame anterior (ya submuestreado):

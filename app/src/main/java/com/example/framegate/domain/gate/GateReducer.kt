@@ -16,7 +16,9 @@ object GateReducer {
      */
     fun evaluate(metrics: Metrics, thresholds: Thresholds, focusBaseline: Float): Verdicts = Verdicts(
         focusOk = metrics.focus >= focusBaseline * thresholds.focusRatio,
-        brightnessOk = metrics.meanLuma >= thresholds.minBrightness,
+        // El brillo exige luma media suficiente y que no haya demasiados píxeles clippeados.
+        brightnessOk = metrics.meanLuma >= thresholds.minBrightness &&
+            metrics.clippedFraction <= thresholds.maxClippedFraction,
         motionOk = metrics.motion <= thresholds.maxMotion,
     )
 
