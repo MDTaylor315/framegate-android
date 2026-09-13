@@ -1,5 +1,7 @@
 package com.example.framegate.domain.queue
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -39,5 +41,22 @@ class ManifestBuilderTest {
         val manifest = ManifestBuilder.build(item())
         assertTrue(manifest.contains("\"mean_luma\":123.457"))
         assertTrue(manifest.contains("\"motion\":12.346"))
+    }
+
+    @Test
+    fun `el manifest tiene exactamente los campos del contrato`() {
+        val manifest = Json.parseToJsonElement(ManifestBuilder.build(item())).jsonObject
+        assertEquals(TOP_LEVEL_FIELDS, manifest.keys)
+        assertEquals(REGION_FIELDS, manifest["region"]!!.jsonObject.keys)
+        assertEquals(MEASUREMENT_FIELDS, manifest["measurements"]!!.jsonObject.keys)
+    }
+
+    private companion object {
+        val TOP_LEVEL_FIELDS = setOf(
+            "idempotency_key", "capture_id", "plan_name", "captured_at",
+            "orientation", "scale_factor", "region", "measurements",
+        )
+        val REGION_FIELDS = setOf("origin", "x", "y", "width", "height")
+        val MEASUREMENT_FIELDS = setOf("focus", "mean_luma", "clipped_fraction", "motion")
     }
 }
