@@ -17,7 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.framegate.di.AppGraph
@@ -47,7 +47,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun FrameGateApp() {
-    var currentScreen by remember { mutableStateOf(AppScreen.CAPTURE) }
+    // rememberSaveable: conserva la pantalla activa al recrear la Activity (rotación).
+    var currentScreen by rememberSaveable { mutableStateOf(AppScreen.CAPTURE) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

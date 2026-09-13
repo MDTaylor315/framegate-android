@@ -42,7 +42,9 @@ class QueueViewModel(
         initialValue = QueueUiState(),
     )
 
-    private val _uiEffect = Channel<QueueUiEffect>(Channel.BUFFERED)
+    // RENDEZVOUS + trySend: un efecto emitido sin colector activo (p. ej. durante
+    // la recreación por rotación) se descarta en vez de bufferizarse y reemitirse.
+    private val _uiEffect = Channel<QueueUiEffect>(Channel.RENDEZVOUS)
     val uiEffect = _uiEffect.receiveAsFlow()
 
     fun onEvent(event: QueueUiEvent) {
@@ -70,7 +72,7 @@ class QueueViewModel(
     }
 
     private fun sendEffect(effect: QueueUiEffect) {
-        viewModelScope.launch { _uiEffect.send(effect) }
+        _uiEffect.trySend(effect)
     }
 
     private companion object {
