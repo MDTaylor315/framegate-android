@@ -33,13 +33,6 @@ class GateStateMachineTest {
     }
 
     @Test
-    fun `N frames buenos consecutivos arman el gate`() {
-        var state = GateState()
-        repeat(3) { state = GateReducer.reduce(state, good(), plan) }
-        assertEquals(GatePhase.Armed, state.phase)
-    }
-
-    @Test
     fun `un frame borroso respecto al baseline bloquea reportando FOCUS`() {
         // Primero un frame nítido fija el baseline alto; luego el borroso cae bajo el ratio.
         var state = GateReducer.reduce(GateState(), good(), plan)  // baseline = 100
@@ -59,26 +52,6 @@ class GateStateMachineTest {
     fun `un frame movido bloquea reportando MOTION`() {
         val state = GateReducer.reduce(GateState(), shaky(), plan)
         assertEquals(setOf(Measurement.MOTION), (state.phase as GatePhase.Blocked).failing)
-    }
-
-    @Test
-    fun `un frame malo resetea el contador de hold`() {
-        var state = GateState()
-        state = GateReducer.reduce(state, good(), plan)   // 1/3
-        state = GateReducer.reduce(state, good(), plan)   // 2/3
-        state = GateReducer.reduce(state, blurry(), plan) // falla -> reset
-        assertEquals(0, state.stableFrames)
-        assertTrue(state.phase is GatePhase.Blocked)
-    }
-
-    @Test
-    fun `secuencia jitter no arma antes de N consecutivos`() {
-        var state = GateState()
-        // bueno, bueno, malo, bueno, bueno, malo... nunca 3 seguidos.
-        val sequence = listOf(good(), good(), blurry(), good(), good(), shaky(), good(), good())
-        sequence.forEach { state = GateReducer.reduce(state, it, plan) }
-        // Tras la secuencia inestable, aún no llegó a 3 consecutivos.
-        assertTrue(state.phase !is GatePhase.Armed)
     }
 
     @Test

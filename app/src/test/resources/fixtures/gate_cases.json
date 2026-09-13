@@ -1,0 +1,45 @@
+{
+  "description": "Secuencias de mediciones con el estado del gate esperado por tick, derivadas a mano de la fórmula del GateReducer (foco = ratio contra baseline auto-calibrado; hold en frames que resetea ante fallo). El test se corre desde aquí, no desde casos retipeados en Kotlin.",
+  "thresholds": { "focusRatio": 0.6, "minBrightness": 50.0, "maxMotion": 15.0 },
+  "holdFrames": 3,
+  "cases": [
+    {
+      "name": "arma_tras_3_buenos",
+      "ticks": [
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Holding", "held": 1 },
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Holding", "held": 2 },
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Armed" }
+      ]
+    },
+    {
+      "name": "frame_malo_resetea_el_hold",
+      "ticks": [
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Holding", "held": 1 },
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Holding", "held": 2 },
+        { "focus": 1.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Blocked", "failing": ["FOCUS"] },
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Holding", "held": 1 },
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Holding", "held": 2 },
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Armed" }
+      ]
+    },
+    {
+      "name": "jitter_nunca_arma",
+      "ticks": [
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Holding", "held": 1 },
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Holding", "held": 2 },
+        { "focus": 1.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Blocked", "failing": ["FOCUS"] },
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Holding", "held": 1 },
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Holding", "held": 2 },
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 40.0, "phase": "Blocked", "failing": ["MOTION"] },
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Holding", "held": 1 },
+        { "focus": 100.0, "meanLuma": 100.0, "motion": 2.0, "phase": "Holding", "held": 2 }
+      ]
+    },
+    {
+      "name": "frame_oscuro_bloquea_por_brillo",
+      "ticks": [
+        { "focus": 100.0, "meanLuma": 10.0, "motion": 2.0, "phase": "Blocked", "failing": ["BRIGHTNESS"] }
+      ]
+    }
+  ]
+}
