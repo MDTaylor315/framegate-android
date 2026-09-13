@@ -12,7 +12,7 @@ import org.junit.Test
 
 class GateStateMachineTest {
 
-    // Umbrales: foco>=60% del baseline, brillo>=50, movimiento<=15. Hold de 3 frames.
+    // Thresholds: focus >= 60% of baseline, brightness >= 50, motion <= 15. Hold window of 3 frames.
     private val step = CaptureStep(
         id = "s1",
         type = StepType.SINGLE_FRAME,
@@ -26,51 +26,51 @@ class GateStateMachineTest {
     private fun blurry() = Metrics(focus = 1f, meanLuma = 100f, clippedFraction = 0f, motion = 2f)
     private fun shaky() = Metrics(focus = 100f, meanLuma = 100f, clippedFraction = 0f, motion = 40f)
 
-    // Luma suficiente pero muchos píxeles quemados/aplastados: el brillo no es usable.
+    // Sufficient luma but too many clipped/blown-out pixels: brightness is not usable.
     private fun clipped() = Metrics(focus = 100f, meanLuma = 100f, clippedFraction = 0.9f, motion = 2f)
 
     @Test
-    fun `un frame bueno pasa a Holding 1 de N`() {
+    fun `a single good frame transitions to Holding 1 of N`() {
         val state = GateReducer.reduce(GateState(), good(), plan)
         assertEquals(GatePhase.Holding(1, 3), state.phase)
     }
 
     @Test
-    fun `un frame borroso respecto al baseline bloquea reportando FOCUS`() {
-        // Primero un frame nítido fija el baseline alto; luego el borroso cae bajo el ratio.
+    fun `a blurry frame relative to baseline blocks reporting FOCUS failure`() {
+        // First a sharp frame sets a high baseline; subsequent blurry frame falls below ratio requirement.
         var state = GateReducer.reduce(GateState(), good(), plan)  // baseline = 100
-        state = GateReducer.reduce(state, blurry(), plan)          // 1 < 100*0.6 -> falla foco
+        state = GateReducer.reduce(state, blurry(), plan)          // 1 < 100*0.6 -> focus fails
         assertTrue(state.phase is GatePhase.Blocked)
         assertEquals(setOf(Measurement.FOCUS), (state.phase as GatePhase.Blocked).failing)
     }
 
     @Test
-    fun `el primer frame no puede estar borroso porque es su propio baseline`() {
-        // Sin referencia previa, el foco se compara consigo mismo y pasa.
+    fun `first frame cannot be blurry because it sets its own initial baseline`() {
+        // Without prior reference, focus is compared against itself and passes.
         val state = GateReducer.reduce(GateState(), blurry(), plan)
         assertEquals(GatePhase.Holding(1, 3), state.phase)
     }
 
     @Test
-    fun `un frame movido bloquea reportando MOTION`() {
+    fun `shaky frame blocks reporting MOTION failure`() {
         val state = GateReducer.reduce(GateState(), shaky(), plan)
         assertEquals(setOf(Measurement.MOTION), (state.phase as GatePhase.Blocked).failing)
     }
 
     @Test
-    fun `un frame con demasiado clipping bloquea reportando BRIGHTNESS pese a buena luma`() {
+    fun `frame with excessive clipping blocks reporting BRIGHTNESS failure despite adequate mean luma`() {
         val state = GateReducer.reduce(GateState(), clipped(), plan)
         assertEquals(setOf(Measurement.BRIGHTNESS), (state.phase as GatePhase.Blocked).failing)
     }
 
     @Test
-    fun `tras armar y disparar avanza al siguiente paso o completa`() {
+    fun `after arming and firing advances to next step or completes`() {
         var state = GateState()
         repeat(3) { state = GateReducer.reduce(state, good(), plan) } // Armed
         state = GateReducer.fire(state)
         assertEquals(GatePhase.Fired, state.phase)
         state = GateReducer.advanceToNextStep(state, plan)
-        // Solo hay un paso -> Complete.
+        // Only one step in plan -> Complete.
         assertEquals(GatePhase.Complete, state.phase)
     }
 }

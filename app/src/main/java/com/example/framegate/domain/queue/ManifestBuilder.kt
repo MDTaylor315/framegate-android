@@ -11,9 +11,9 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 
 /**
- * Construye el manifest JSON según el contrato: epoch-millis, orientación entera,
- * medidas a 3 decimales y scale_factor conservado como número crudo (sin Double).
- * Las claves salen en orden estable para poder comparar byte a byte con el golden.
+ * Constructs the manifest JSON according to contract specifications: epoch-millis timestamps,
+ * integer orientation, metrics rounded to 3 decimal places, and scale_factor preserved as
+ * a raw unquoted number (avoiding Double precision loss). Keys are emitted in stable order.
  */
 object ManifestBuilder {
 
@@ -51,8 +51,8 @@ object ManifestBuilder {
             .setScale(MEASUREMENT_SCALE, RoundingMode.HALF_UP)
             .toDouble()
 
-    // JsonUnquotedLiteral emite el string tal cual (número sin comillas), así el
-    // scale_factor conserva todos sus dígitos sin pasar por Double.
+    // JsonUnquotedLiteral emits the raw string representation (number without quotes),
+    // ensuring scale_factor preserves full precision without passing through Double.
     @OptIn(ExperimentalSerializationApi::class)
     private fun rawNumber(raw: String): JsonPrimitive = JsonUnquotedLiteral(raw)
 }

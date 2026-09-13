@@ -8,6 +8,6 @@ data class PlanParseResult(
 ) {
     val isSuccess: Boolean get() = plan != null
 
-    // Texto plano para mostrar en el HUD, sin UI de error dedicada.
+    // Plain text display for the HUD, without requiring dedicated error UI.
     fun diagnosticsText(): String = diagnostics.joinToString("\n") { it.toString() }
 }

@@ -54,7 +54,7 @@ fun CaptureScreen(
             },
         contentAlignment = Alignment.Center,
     ) {
-        // El recuadro viene calculado por el ViewModel; la UI solo lo dibuja.
+        // The overlay rectangle is computed by the ViewModel; the UI only renders it.
         uiState.overlayRect?.let { rect ->
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawRect(

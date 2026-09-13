@@ -8,7 +8,7 @@ import org.junit.Test
 class RetryPolicyTest {
 
     @Test
-    fun `backoff crece exponencialmente sin jitter`() {
+    fun `backoff grows exponentially without jitter`() {
         val policy = RetryPolicy(baseDelayMillis = 500, maxDelayMillis = 100_000, jitterFactor = 0.0)
         val noJitter = { 0.0 }
 
@@ -19,25 +19,25 @@ class RetryPolicyTest {
     }
 
     @Test
-    fun `el delay se recorta al maximo configurado`() {
+    fun `delay is capped to configured maximum`() {
         val policy = RetryPolicy(baseDelayMillis = 500, maxDelayMillis = 1500, jitterFactor = 0.0)
         val noJitter = { 0.0 }
 
-        // 500 * 2^3 = 4000, pero el cap es 1500.
+        // 500 * 2^3 = 4000, but cap is 1500.
         assertEquals(1500L, policy.delayForAttempt(4, noJitter))
     }
 
     @Test
-    fun `el jitter agrega tiempo dentro del factor configurado`() {
+    fun `jitter adds time within configured factor range`() {
         val policy = RetryPolicy(baseDelayMillis = 1000, maxDelayMillis = 100_000, jitterFactor = 0.5)
 
-        // random=0 -> sin jitter; random~1 -> +50% del delay.
+        // random=0 -> no jitter; random~1 -> +50% delay.
         assertEquals(1000L, policy.delayForAttempt(1) { 0.0 })
         assertEquals(1499L, policy.delayForAttempt(1) { 0.999 })
     }
 
     @Test
-    fun `canRetry respeta el tope de intentos`() {
+    fun `canRetry respects maximum attempt limit`() {
         val policy = RetryPolicy(maxAttempts = 3)
         assertTrue(policy.canRetry(1))
         assertTrue(policy.canRetry(2))

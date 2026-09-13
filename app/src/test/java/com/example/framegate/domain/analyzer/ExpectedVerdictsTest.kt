@@ -7,9 +7,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Reproduce los 24 frames del assessment, corre MetricsAnalyzer con el ROI de cada
- * fila y compara métricas y verdicts contra expected_verdicts.csv. El CSV se derivó
- * a mano de la fórmula (metrics_reference.md), no de la salida del código.
+ * Replays the 24 assessment frames, runs MetricsAnalyzer with the specified ROI for each row,
+ * and validates metrics and verdicts against expected_verdicts.csv. The CSV was manually derived
+ * from specifications (metrics_reference.md), not from code output.
  */
 class ExpectedVerdictsTest {
 
@@ -28,7 +28,7 @@ class ExpectedVerdictsTest {
 
     private fun loadRows(): List<Row> {
         val text = requireNotNull(javaClass.getResourceAsStream("/fixtures/expected_verdicts.csv")) {
-            "no está expected_verdicts.csv"
+            "expected_verdicts.csv not found"
         }.bufferedReader().use { it.readText() }
         return text.trim().lines().drop(1).map { line ->
             val c = line.split(",")
@@ -48,10 +48,10 @@ class ExpectedVerdictsTest {
     }
 
     @Test
-    fun `los 24 frames producen los verdicts del csv`() {
+    fun `all 24 frames match csv verdicts`() {
         val rows = loadRows()
         val frames = drainFrames()
-        assertEquals("cantidad de frames", rows.size, frames.size)
+        assertEquals("frame count", rows.size, frames.size)
 
         var baseline = 0f
         var previous: ByteArray? = null

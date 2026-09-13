@@ -12,15 +12,15 @@ class PlanParserTest {
     private val parser = PlanParser()
 
     private fun loadFixture(name: String): String =
-        requireNotNull(javaClass.getResourceAsStream("/fixtures/$name")) { "no está $name" }
+        requireNotNull(javaClass.getResourceAsStream("/fixtures/$name")) { "$name not found" }
             .bufferedReader().use { it.readText() }
 
     private fun codes(result: PlanParseResult) = result.diagnostics.map { it.code }
 
-    // --- El plan messy completo coincide con plan_expectations.md ---
+    // --- Messy plan matches expectations ---
 
     @Test
-    fun `plan messy es fail-soft y conserva los pasos utilizables`() {
+    fun `messy plan is fail-soft and preserves usable steps`() {
         val result = parser.parse(loadFixture("plan_messy.json"))
 
         assertTrue(result.isSuccess)
@@ -29,51 +29,51 @@ class PlanParserTest {
     }
 
     @Test
-    fun `scale_factor se conserva como string sin perder precision`() {
+    fun `scale_factor is preserved as string without losing precision`() {
         val result = parser.parse(loadFixture("plan_messy.json"))
         assertEquals("1.234567890123456789", result.plan!!.scaleFactorRaw)
     }
 
-    // --- Un test por cada tipo de malformación ---
+    // --- Tests for each malformation case ---
 
     @Test
-    fun `focus_ratio con casing mixto (FOCUS_RATIO) y como string se resuelve`() {
+    fun `focus_ratio with mixed casing (FOCUS_RATIO) and string format is resolved`() {
         val result = parser.parse(loadFixture("plan_messy.json"))
         val step = result.plan!!.steps.first { it.id == "step-01" }
         assertEquals(0.7, step.thresholds.focusRatio, 0.001)
     }
 
     @Test
-    fun `numero enviado como string se interpreta`() {
+    fun `number sent as string is properly parsed`() {
         val result = parser.parse(loadFixture("plan_messy.json"))
         val step = result.plan!!.steps.first { it.id == "step-01" }
         assertEquals(60.0, step.thresholds.minBrightness, 0.001)
-        assertEquals(5, step.requiredHoldFrames) // "5" como string
+        assertEquals(5, step.requiredHoldFrames) // "5" as string
     }
 
     @Test
-    fun `nullable a veces null usa el default (max_motion null)`() {
+    fun `nullable key when null uses default value (max_motion null)`() {
         val result = parser.parse(loadFixture("plan_messy.json"))
         val step = result.plan!!.steps.first { it.id == "step-01" }
         assertEquals(15.0, step.thresholds.maxMotion, 0.001)
     }
 
     @Test
-    fun `tipo de paso desconocido se descarta con diagnostico`() {
+    fun `unknown step type is discarded with diagnostic`() {
         val result = parser.parse(loadFixture("plan_messy.json"))
         assertTrue(result.plan!!.steps.none { it.id == "step-02-desconocido" })
         assertTrue(codes(result).contains("UNKNOWN_STEP_TYPE"))
     }
 
     @Test
-    fun `id de paso duplicado descarta la repeticion y conserva el primero`() {
+    fun `duplicate step id discards repetition and keeps first`() {
         val result = parser.parse(loadFixture("plan_messy.json"))
         assertEquals(1, result.plan!!.steps.count { it.id == "step-01" })
         assertTrue(codes(result).contains("DUPLICATE_STEP_ID"))
     }
 
     @Test
-    fun `objeto declarado pero null usa defaults (thresholds null)`() {
+    fun `declared object when null uses default values (thresholds null)`() {
         val result = parser.parse(loadFixture("plan_messy.json"))
         val step = result.plan!!.steps.first { it.id == "step-03-null-thresholds" }
         assertEquals(0.6, step.thresholds.focusRatio, 0.001)
@@ -81,46 +81,46 @@ class PlanParserTest {
     }
 
     @Test
-    fun `timestamp sin timezone se marca y se asume UTC`() {
+    fun `timestamp without timezone flags diagnostic and assumes UTC`() {
         val result = parser.parse(loadFixture("plan_messy.json"))
         assertTrue(codes(result).contains("TIMESTAMP_NO_TZ"))
         assertEquals("2026-09-10T12:00:00", result.plan!!.createdAtIso)
     }
 
     @Test
-    fun `claves desconocidas se ignoran sin error`() {
+    fun `unknown keys are ignored without error`() {
         val result = parser.parse(loadFixture("plan_messy.json"))
         assertFalse(result.diagnostics.any { it.severity == Severity.ERROR })
     }
 
-    // --- El plan limpio no genera advertencias ---
+    // --- Clean plan produces zero warnings ---
 
     @Test
-    fun `plan limpio parsea sin diagnosticos`() {
+    fun `clean plan parses with empty diagnostics`() {
         val result = parser.parse(loadFixture("plan_clean.json"))
         assertTrue(result.isSuccess)
         assertEquals(2, result.plan!!.steps.size)
         assertTrue(result.diagnostics.isEmpty())
     }
 
-    // --- Casos fail-hard ---
+    // --- Fail-hard cases ---
 
     @Test
-    fun `json invalido es fail-hard con ERROR`() {
+    fun `invalid json is fail-hard with ERROR`() {
         val result = parser.parse("{ esto no es json ")
         assertNull(result.plan)
         assertTrue(codes(result).contains("INVALID_JSON"))
     }
 
     @Test
-    fun `plan sin steps es fail-hard`() {
+    fun `plan without steps is fail-hard`() {
         val result = parser.parse("""{ "plan_name": "x" }""")
         assertNull(result.plan)
         assertTrue(codes(result).contains("NO_STEPS"))
     }
 
     @Test
-    fun `plan sin pasos utilizables es fail-hard`() {
+    fun `plan without usable steps is fail-hard`() {
         val json = """{ "steps": [ { "id": "a", "type": "DESCONOCIDO" } ] }"""
         val result = parser.parse(json)
         assertNull(result.plan)

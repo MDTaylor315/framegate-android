@@ -7,9 +7,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * Drena la cola en serie aplicando el contrato del servidor: 201/409 = éxito,
- * 400/422 = fallo terminal sin reintento, 500/503/timeout = reintento con
- * backoff. El [clock] se inyecta para testear el backoff sin esperas reales.
+ * Drains the queue sequentially applying server contract rules: 201/409 = success,
+ * 400/422 = terminal failure with no retry, 500/503/timeout = transient retry with
+ * backoff. [clock] is injected to allow testing backoff delays without real waiting.
  */
 class UploadEngine(
     private val store: JournalQueueStore,
@@ -19,11 +19,11 @@ class UploadEngine(
     private val retryPolicy: RetryPolicy = RetryPolicy(),
     private val random: () -> Double = Math::random,
 ) {
-    // Tope de intentos, para que la UI pueda mostrar "intento N/max".
+    // Max attempts allowed, used by UI to show "attempt N/max".
     val maxAttempts: Int get() = retryPolicy.maxAttempts
 
-    // Serializa el drenaje: aunque se invoque desde varios sitios (captura y Queue),
-    // solo una pasada procesa la cola a la vez, evitando enviar un item dos veces.
+    // Serializes drain execution: even if triggered concurrently (capture flow and Queue UI),
+    // only one drain loop processes the queue at a time, preventing duplicate uploads.
     private val drainMutex = Mutex()
 
     suspend fun drain() = drainMutex.withLock {
@@ -37,8 +37,8 @@ class UploadEngine(
         var draining = true
 
         while (draining) {
-            // Se persiste el intento antes de la red: si el proceso muere aquí,
-            // el item queda UPLOADING y al relanzar se reencola.
+            // Attempt is persisted before the network call: if process dies here,
+            // item remains UPLOADING and is re-queued as PENDING upon restart.
             current = current.copy(
                 status = QueueItemStatus.UPLOADING,
                 attempts = current.attempts + 1,
@@ -74,7 +74,7 @@ class UploadEngine(
                         clock.sleep(retryPolicy.delayForAttempt(current.attempts, random))
                         current = store.get(current.id) ?: current.also { draining = false }
                     } else {
-                        store.put(current.toFailed("Intentos agotados. Último error ${result.statusCode}"))
+                        store.put(current.toFailed("Attempts exhausted. Last error: ${result.statusCode}"))
                         draining = false
                     }
                 }

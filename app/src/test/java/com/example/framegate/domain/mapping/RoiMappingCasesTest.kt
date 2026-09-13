@@ -7,8 +7,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Corre CoordinateMapper contra las coordenadas golden de roi_mapping_cases.json,
- * calculadas a mano desde la fórmula (no desde la salida del código). Tolerancia 0.5 px.
+ * Runs CoordinateMapper against golden coordinates in roi_mapping_cases.json,
+ * manually calculated from mathematical spec (not code output). Tolerance 0.5 px.
  */
 class RoiMappingCasesTest {
 
@@ -38,13 +38,13 @@ class RoiMappingCasesTest {
 
     private fun load(): Cases {
         val text = requireNotNull(javaClass.getResourceAsStream("/fixtures/roi_mapping_cases.json")) {
-            "no está roi_mapping_cases.json"
+            "roi_mapping_cases.json not found"
         }.bufferedReader().use { it.readText() }
         return json.decodeFromString(Cases.serializer(), text)
     }
 
     @Test
-    fun `las 4 configuraciones coinciden con el golden a 0,5 px`() {
+    fun `all 4 configurations match golden coordinates within 0,5 px`() {
         val data = load()
         val roi = NormalizedRoi(data.roi.x, data.roi.y, data.roi.width, data.roi.height)
 

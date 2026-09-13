@@ -1,6 +1,6 @@
 package com.example.framegate.domain.parser
 
-// WARNING no invalida el plan; ERROR sí (fail-hard de todo el plan)
+// WARNING does not invalidate the plan; ERROR does (fail-hard for the entire plan)
 enum class Severity { WARNING, ERROR }
 
 data class Diagnostic(

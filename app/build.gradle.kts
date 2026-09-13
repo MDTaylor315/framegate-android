@@ -7,12 +7,12 @@ plugins {
 }
 
 detekt {
-    // Reglas definidas en el archivo del repositorio.
+    // Rules defined in the repository file.
     config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
-    // No fallar por reglas nuevas de versiones futuras; solo por lo configurado.
+    // Do not fail on new rules from future versions; only enforcement from config.
     buildUponDefaultConfig = true
-    // Baseline: registra la deuda de estilo preexistente (en código heredado que
-    // se reescribe por fases). Los hallazgos NUEVOS siguen fallando el build.
+    // Baseline: records pre-existing style debt (in legacy code being
+    // rewritten in phases). NEW findings will still fail the build.
     baseline = file("$rootDir/config/detekt/baseline.xml")
 }
 

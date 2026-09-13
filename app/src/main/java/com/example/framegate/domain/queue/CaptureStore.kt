@@ -3,8 +3,8 @@ package com.example.framegate.domain.queue
 import java.io.File
 
 /**
- * Guarda el binario de cada captura en disco y devuelve su ruta; la cola guarda
- * la ruta, no los bytes. El directorio se inyecta para testear sin Android.
+ * Persists raw capture binary data to disk and returns its file path; the queue stores
+ * file paths rather than raw bytes. The target directory is injected for testability without Android dependencies.
  */
 class CaptureStore(private val dir: File) {
 

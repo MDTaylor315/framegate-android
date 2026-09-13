@@ -17,8 +17,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * El estado se deriva de la cola persistida y del flag de drenaje con
- * combine(...).stateIn(...). Los efectos van por Channel, fuera del estado.
+ * UI state is derived from the persistent queue store and drain status via
+ * combine(...).stateIn(...). One-shot UI effects use Channel, separate from state.
  */
 class QueueViewModel(
     private val queueStore: JournalQueueStore = AppGraph.queueStore,
@@ -33,18 +33,18 @@ class QueueViewModel(
     ) { items, isDraining ->
         QueueUiState(
             isLoading = isDraining,
-            // Más recientes primero, para no tener que desplazarse hasta el final.
+            // Most recent items first, eliminating the need to scroll down.
             items = items.asReversed().map { it.toUiModel(uploadEngine.maxAttempts) },
         )
     }.stateIn(
         scope = viewModelScope,
-        // Sigue activo unos segundos tras rotar para no reiniciar el estado.
+        // Remains active for a few seconds post-rotation to avoid resetting state.
         started = SharingStarted.WhileSubscribed(SUBSCRIPTION_TIMEOUT_MS),
         initialValue = QueueUiState(),
     )
 
-    // RENDEZVOUS + trySend: un efecto emitido sin colector activo (p. ej. durante
-    // la recreación por rotación) se descarta en vez de bufferizarse y reemitirse.
+    // RENDEZVOUS + trySend: an effect emitted without an active collector (e.g., during
+    // Activity rotation recreation) is dropped rather than buffered and re-emitted.
     private val _uiEffect = Channel<QueueUiEffect>(Channel.RENDEZVOUS)
     val uiEffect = _uiEffect.receiveAsFlow()
 

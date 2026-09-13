@@ -20,7 +20,7 @@ object CoordinateMapper {
         scaleMode: ScaleMode = ScaleMode.CROP,
         normalizedRoi: NormalizedRoi
     ): CoordinateMapping{
-        // Se aplica espejo y rotación al ROI antes de proyectarlo.
+        // Mirroring and rotation are applied to the ROI before projection.
         val roi = RoiTransform.transform(normalizedRoi, sensorRotation, displayRotation, isMirrored)
 
         val bufLeft = (roi.x * bufferWidth).toInt().coerceIn(0, bufferWidth)
@@ -35,7 +35,7 @@ object CoordinateMapper {
             bottom = bufBottom
         )
 
-        // La rotación neta decide si el buffer se ve apaisado (se intercambian W/H).
+        // Net rotation determines whether dimensions are swapped (portrait vs landscape).
         val rotation = RoiTransform.effectiveRotation(sensorRotation, displayRotation)
         val (effectiveBufferW, effectiveBufferH) = if (RoiTransform.swapsDimensions(rotation)){
              Pair(bufferHeight.toFloat(),bufferWidth.toFloat())
@@ -50,15 +50,15 @@ object CoordinateMapper {
             min(viewWidth/effectiveBufferW, viewHeight /effectiveBufferH)
         }
 
-        //Ancho y Alto reales del area a dibujar
+        // Real width and height of the rendered image area
         val scaledW = effectiveBufferW * scale
         val scaledH = effectiveBufferH * scale
 
-        //Verifica donde inicia la foto
+        // Calculates viewport origin offsets
         val offsetX = (viewWidth - scaledW) / 2.0f
         val offsetY = (viewHeight - scaledH) / 2.0f
 
-        // Posición del ROI (ya transformado) dentro de la vista, para el Canvas.
+        // Position of the (already transformed) ROI within the View for Canvas drawing.
         val viewLeft = offsetX + (roi.x * scaledW)
         val viewTop = offsetY + (roi.y * scaledH)
         val viewRight = viewLeft + (roi.width * scaledW)

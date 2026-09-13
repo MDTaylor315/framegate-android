@@ -1,137 +1,70 @@
 # FrameGate
 
-App Android (Kotlin + Jetpack Compose) de dos pantallas cuyo núcleo es un loop de
-captura: mide cada frame dentro de una región definida por un plan, dispara el
-obturador cuando las mediciones se mantienen estables N frames, y saca cada captura
-del dispositivo exactamente una vez a través de una cola que sobrevive a que la maten.
-Corre de punta a punta en un emulador stock usando los fixtures embebidos: sin cámara
-ni servidor reales.
+A two-screen Android application (Kotlin + Jetpack Compose) built around a frame capture loop: it measures each incoming camera/fixture frame within a region of interest (ROI) defined by a plan, triggers the shutter when metrics remain stable for N consecutive frames, and safely exits each capture from the device exactly once using an crash-resilient persistent queue. Runs end-to-end on a stock emulator using embedded fixtures: no physical camera or real remote server required.
 
-## Cómo correr
+## How to Run
 
-Requisitos: JDK 17+, Android SDK (compileSdk 36, minSdk 26).
+Requirements: JDK 17+, Android SDK (compileSdk 36, minSdk 26).
 
-```
-./gradlew installDebug      # instala en un emulador/dispositivo conectado
-./gradlew test              # corre la suite completa (JUnit puro, sin dispositivo)
-./gradlew testDebugUnitTest # misma suite, solo la variante debug
-./gradlew detekt            # análisis estático
-./gradlew assembleDebug     # genera el APK
+```bash
+./gradlew installDebug      # Installs on a connected emulator or physical device
+./gradlew test              # Runs the full unit test suite (pure JUnit, no device required)
+./gradlew testDebugUnitTest # Runs the same unit test suite for the debug variant
+./gradlew detekt            # Executes static analysis checks
+./gradlew assembleDebug     # Generates the debug APK
 ```
 
-La app arranca sobre la fixture frame source (los 24 frames del assessment), sin
-editar código.
+The app boots directly onto the fixture frame source (the 24 assessment frames) without requiring any code edits.
 
-No hay container ni servidor: la subida se evalúa contra el fake transport in-process
-(`FakeUploadTransport`), que es el default. El Dockerfile / mock server para una subida
-real end-to-end es stretch y no se incluyó (ver "Qué se sacrificó").
+No containers or servers are required: uploads are evaluated against an in-process fake transport (`FakeUploadTransport`), which is enabled by default. Docker containers / external mock servers for end-to-end network transmission were treated as stretch items and omitted (see "Sacrifices and Trade-offs").
 
-### Las dos frame sources
+### The Two Frame Sources
 
-Ambas viven detrás de la interfaz `FrameSource` (`getNextFrame(): FrameData?`):
+Both frame sources implement the `FrameSource` interface (`getNextFrame(): FrameData?`):
 
-- **`ReplayFrameSource.assessment()`** — la ruta de revisión principal, activa por
-  defecto en `CaptureViewModel`. Reproduce 24 frames sintéticos deterministas que
-  cuentan una historia de captura: oscuro/movido → transición → nítido/centrado →
-  nítido en un cuadrante. Los verdicts esperados de estos 24 frames están en
-  `expected_verdicts.csv` y se validan en `ExpectedVerdictsTest`.
-- **`ReplayFrameSource.uniform()`** — una fuente mínima de un solo frame uniforme,
-  útil para pruebas simples.
+- **`ReplayFrameSource.assessment()`** — the primary evaluation pipeline, active by default in `CaptureViewModel`. Replays 24 deterministic synthetic frames representing a capture lifecycle: dark/shaky → transition → sharp/centered → sharp in one quadrant. Expected verdicts for these 24 frames are stored in `expected_verdicts.csv` and validated in `ExpectedVerdictsTest`.
+- **`ReplayFrameSource.uniform()`** — a minimal frame source yielding a single uniform frame, useful for quick unit testing.
 
-Para cambiar de fuente, se pasa la instancia al construir `CaptureViewModel` (el
-default es `assessment()`). No hay selector en la UI: el plan y la fuente se fijan
-en código, como pide el enunciado (sin plan picker).
+To switch sources, pass the desired instance when constructing `CaptureViewModel` (default is `assessment()`). There is no UI selector: the plan and frame source are fixed in code per specification guidelines (no plan picker UI required).
 
-## Arquitectura
+## Architecture
 
-- **Dominio puro** (`domain/`): parser, gate, mapper de coordenadas, analyzer de
-  métricas, cola y manifest. Sin dependencias de Android; todo alcanzable desde
-  JUnit sin dispositivo ni reloj real.
-- **ViewModels** con un `StateFlow` por pantalla derivado con
-  `combine(...).stateIn(...)`, un único `onEvent` por pantalla, y efectos one-shot
-  por `Channel` (fuera del estado).
-- **DI a mano** en `di/AppGraph.kt` (sin Hilt/Koin/Dagger).
-- Una sola `Activity`; navegación por un enum switch entre Capture y Queue.
-- Sin RxJava/LiveData, sin WorkManager, JSON solo con `kotlinx.serialization`.
+- **Pure Domain Layer** (`domain/`): Plan parser, gate reducer, coordinate mapper, metrics analyzer, queue store, and manifest builder. Free of Android framework dependencies; fully testable via JUnit without requiring a device or real system clock.
+- **ViewModels**: Screen state is exposed via `StateFlow` derived using `combine(...).stateIn(...)`. Features a single `onEvent` handler per screen, and streams one-shot UI events using `Channel` (decoupled from persistent state).
+- **Manual Dependency Injection**: Centralized in `di/AppGraph.kt` (no Hilt/Koin/Dagger).
+- **Single Activity**: Screen navigation managed via an enum-based state switch between Capture and Queue.
+- **Minimal Dependencies**: No RxJava/LiveData, no WorkManager; JSON serialization handled strictly with `kotlinx.serialization`.
 
-### Decisiones de diseño no triviales
+### Non-Trivial Design Decisions
 
-- **Foco como ratio contra un baseline auto-calibrado.** La energía de gradiente no
-  tiene escala fija (depende de la escena), así que un umbral absoluto no generaliza.
-  El gate exige que el foco sea al menos `focusRatio` (default 0.6) del pico visto en
-  la secuencia. El primer frame es su propio baseline, así que nunca se bloquea por
-  foco. El campo `min_focus` absoluto se eliminó por ser código muerto.
-- **Brillo con clipping.** El verdict de brillo exige luma media suficiente y que la
-  fracción de píxeles quemados/aplastados no supere `maxClippedFraction` (default 0.5).
-- **Efectos one-shot con `Channel.RENDEZVOUS` + `trySend`.** Un efecto emitido sin
-  colector activo (p. ej. durante la recreación por rotación) se descarta en vez de
-  bufferizarse y reemitirse. Con `rememberSaveable` para la pantalla activa, la
-  rotación no reinicia el estado ni repite toasts.
-- **Durabilidad: journal append-only.** Cada cambio de estado del registro es una
-  línea JSON. El registro se escribe antes de la llamada de red; si el proceso muere
-  a mitad de una subida, al relanzar el item `UPLOADING` se degrada a `PENDING` y se
-  reintenta. La `idempotencyKey` es estable durante toda la vida del registro, así el
-  servidor deduplica (409 = éxito) y se sube exactamente una vez. El id del registro
-  es un UUID único, para que reiniciar el loop o relanzar la app nunca sobrescriba
-  capturas.
-- **Backoff exponencial con jitter**, delay e intentos capados, con `Clock` inyectable
-  para testear sin esperas reales. 201/409 = éxito; 400/422 = terminal sin reintento
-  automático (solo el botón manual de la Queue puede reintentar); 500/503/timeout =
-  reintento con backoff.
-- **`scale_factor` del plan** se preserva como número crudo (`JsonUnquotedLiteral`),
-  sin pasar por `Double`, para no perder dígitos.
-- **Mapeo de coordenadas** como función pura (`CoordinateMapper` + `RoiTransform`),
-  con rotación y espejo explícitos, sin offsets mágicos. La pantalla Capture tiene un
-  botón que cicla las 4 configuraciones de cámara para verificar que el overlay del
-  ROI cae bien en cada rotación/espejo.
+- **Focus Evaluated as Ratio Against Auto-Calibrated Baseline**: Gradient energy does not have a fixed scale across arbitrary scenes, making absolute thresholding impractical. The gate requires focus to reach at least `focusRatio` (default 0.6) of the peak focus observed in the sequence. The first frame serves as its own baseline, preventing initial false blocks. The absolute `min_focus` field was eliminated as dead code.
+- **Brightness Evaluation with Clipping**: Brightness verdicts require sufficient average luma while ensuring the fraction of clipped/blown-out or crushed pixels does not exceed `maxClippedFraction` (default 0.5).
+- **One-Shot UI Effects with `Channel.RENDEZVOUS` + `trySend`**: Effects emitted without an active UI collector (e.g. during Activity rotation recreation) are dropped rather than buffered for re-emission. Paired with `rememberSaveable` for screen navigation, screen rotation does not reset UI state or repeat toast notifications.
+- **Durability via Append-Only Journal**: Every queue record state change appends a JSON line to disk. Records are written before initiating network calls; if the process dies mid-upload, restarting demotes `UPLOADING` items to `PENDING` for retry. The `idempotencyKey` remains stable across the item's lifetime, allowing server-side deduplication (409 = success) to enforce exactly-once delivery. The record ID uses a unique UUID, preventing app restarts from overwriting prior capture records.
+- **Exponential Backoff with Jitter**: Includes capped delays and attempt limits, with an injectable `Clock` for deterministic testing. 201/409 = success; 400/422 = terminal client error with no automatic retries (manual retries available in Queue screen); 500/503/timeout = transient error with backoff.
+- **Plan `scale_factor` Preservation**: Scale factor is preserved as a raw unquoted JSON number (`JsonUnquotedLiteral`), avoiding `Double` parsing to prevent precision loss.
+- **Coordinate Mapping**: Pure functions (`CoordinateMapper` + `RoiTransform`) handle explicit rotation and horizontal mirroring without magic offsets. The Capture screen features a button to cycle all 4 camera configurations (rotation/mirroring) to visually verify ROI alignment.
 
-## Fixtures como oráculo
+## Fixtures as Test Oracles
 
-Los tests de lógica pura se corren desde fixtures en `app/src/test/resources/fixtures`,
-no desde casos retipeados en Kotlin:
+Pure domain unit tests execute against fixtures in `app/src/test/resources/fixtures`:
 
-- `plan_messy.json` / `plan_clean.json` + `plan_expectations.md` — parseo defensivo.
-- `roi_mapping_cases.json` — coordenadas golden a 0.5 px, 4 configuraciones.
-- `gate_cases.json` — secuencias del gate (incluida una jitter).
-- `expected_verdicts.csv` + `metrics_reference.md` — los 24 frames y sus verdicts,
-  derivados a mano de la fórmula documentada (con aritmética de precisión simple,
-  igual que el código), no de la salida del código.
-- `manifest.schema.json` + `manifest_golden.json` — igualdad byte a byte del manifest.
+- `plan_messy.json` / `plan_clean.json` + `plan_expectations.md` — defensive plan parsing validation.
+- `roi_mapping_cases.json` — golden coordinate reference within 0.5 px across 4 camera configurations.
+- `gate_cases.json` — gate step-by-step state transition sequences (including jitter handling).
+- `expected_verdicts.csv` + `metrics_reference.md` — 24 assessment frames and their expected verdicts, derived from specs rather than code output.
+- `manifest.schema.json` + `manifest_golden.json` — byte-for-byte exact equality validation for upload manifests.
 
-## Qué se sacrificó y por qué
+## Sacrifices and Trade-Offs
 
-Todo esto son stretch goals explícitamente no puntuables según el enunciado; se
-priorizó blindar el scope obligatorio:
+- **Real CameraX Integration**: Omitted in favor of fixture sources. `MetricsAnalyzer` consumes a luma buffer with stride metadata; a CameraX `FrameSource` would extract `planes[0]` from `ImageProxy`, pass it to the analyzer, and close the `ImageProxy` in a `try/finally`. Domain logic remains untouched.
+- **Dockerfile / External Mock Server**: End-to-end network transmission relies on `FakeUploadTransport` in-process simulation.
+- **Burst Steps & Multi-Sensor Fusion**: Multi-frame burst captures and sensor fusion for motion detection were excluded to maintain focus on core scope requirements.
 
-- **CameraX real** no se cableó. El `MetricsAnalyzer` recibe un buffer de luma con su
-  stride, así que un `FrameSource` de CameraX solo tendría que extraer `planes[0]` del
-  `ImageProxy`, pasarlo al mismo analyzer, y cerrar el `ImageProxy` en un `try/finally`.
-  No cambia el dominio. No se implementó porque no puntúa y el revisor no lo puede
-  ejecutar de forma fiable.
-- **Dockerfile / mock server** para una subida real end-to-end no se incluyó. El
-  retry/backoff se evalúa contra el fake transport in-process, que sigue siendo el
-  default.
-- Segundo tipo de step (burst) y fusión de sensores en el movimiento: no implementados.
+## Known Limitations & Verification Notes
 
-## Qué no se pudo verificar / limitaciones conocidas
-
-- **Sin cámara real.** Los frames son sintéticos (`ReplayFrameSource`), no de cámara.
-  La app se ejecutó sobre la fixture source (en emulador y en un dispositivo físico
-  Pixel 9a), pero el path de CameraX no se cableó y por tanto nunca se corrió.
-- **El "JPEG" es el buffer del frame**, no un JPEG codificado. Se persiste el buffer de
-  luma tal cual como artefacto; no hay codificación de imagen.
-- **`ImageProxy.close()` no aplica** en esta implementación: no hay `ImageProxy` (los
-  frames son `ByteArray`). Revisado el hot path, no hay recursos sin cerrar; los buffers
-  los gestiona el GC y el único stream (el asset del plan) se cierra con `use`.
-- **Buffers no preasignados.** El analyzer no reusa un pool de buffers porque no asigna
-  arrays por frame (opera sobre el buffer entrante); los únicos objetos por frame son
-  acumuladores triviales. Con CameraX real convendría un pool.
-- **Guion de fallos de demostración en runtime.** Para que la pantalla Queue muestre
-  estados variados, el transporte en la app usa un `FailureScript` de demo (la primera
-  captura de cada corrida se recupera tras backoff; la segunda queda en `Failed` con
-  reintento manual). El grading real del retry/backoff es por los tests + el log del
-  transporte, no por la UI.
-- **Muerte del proceso:** la recuperación está probada por JUnit (`UploadEngineTest`) y,
-  además, verificada a mano en el Pixel 9a: matar la app a mitad de una subida y
-  relanzar deja el registro en pendiente, reintenta y termina; nada se pierde ni se
-  duplica.
+- **Synthetic Frames**: Frames are synthetic (`ReplayFrameSource`). App UI flows were verified on emulator and physical hardware (Pixel 9a), but live camera hardware capture streams were not wired.
+- **Uncompressed Binary Artifacts**: Capture artifacts store raw luma byte buffers directly without JPEG compression encoding.
+- **Memory & Resource Cleanup**: No unclosed resources remain on hot-paths; byte buffers are managed by garbage collection, and file assets are safely managed with `use`.
+- **Runtime Demo Script**: To demonstrate varied states on the Queue screen, runtime transport uses a demo `FailureScript` (1st upload recovers via backoff; 2nd upload encounters terminal 422 error requiring manual retry).
+- **Process Death Resilience**: Verified via JUnit tests (`UploadEngineTest`) and manual verification on physical device (killing app during upload gracefully recovers pending state on restart).

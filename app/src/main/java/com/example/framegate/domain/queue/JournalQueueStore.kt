@@ -7,10 +7,10 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 /**
- * Cola persistida como journal append-only: cada cambio de estado es una línea
- * JSON al final del archivo, y el estado se reconstruye reproduciendo el archivo
- * (la última línea de cada id gana). El [journalFile] se inyecta para poder
- * testear la durabilidad sin Android.
+ * Persistent queue backed by an append-only journal file: each state change writes
+ * a single JSON line to the end of the file, and current state is rebuilt by replaying
+ * lines in order (last entry for a given ID wins). [journalFile] is injected to allow
+ * testing durability without Android dependencies.
  */
 class JournalQueueStore(
     private val journalFile: File,
@@ -36,8 +36,8 @@ class JournalQueueStore(
             }
         }
 
-        // Una subida interrumpida por el cierre de la app queda in-flight; se
-        // reencola para que se reintente. Solo estos casos se reescriben.
+        // Uploads interrupted by app termination remain in-flight (UPLOADING);
+        // re-queue them as PENDING for retry. Only these cases trigger rewritten updates.
         val interrupted = items.values.filter { it.status == QueueItemStatus.UPLOADING }
         interrupted.forEach { put(it.copy(status = QueueItemStatus.PENDING)) }
 

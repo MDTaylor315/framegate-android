@@ -3,9 +3,8 @@ package com.example.framegate.domain.queue
 import com.example.framegate.domain.interfaces.Clock
 
 /**
- * Reloj falso para tests: no duerme en tiempo real, solo acumula el tiempo
- * "dormido" en [totalSleptMillis]. Así los tests de backoff se ejecutan al
- * instante pero podemos verificar cuánto se habría esperado.
+ * Fake clock for testing: does not sleep in real time, accumulating simulated sleep duration
+ * in [totalSleptMillis]. Enables instant backoff unit test execution while verifying expected delays.
  */
 class FakeClock(private var now: Long = 0L) : Clock {
     var totalSleptMillis: Long = 0L

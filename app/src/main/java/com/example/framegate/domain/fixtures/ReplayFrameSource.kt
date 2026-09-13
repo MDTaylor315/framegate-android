@@ -4,9 +4,9 @@ import com.example.framegate.domain.interfaces.FrameSource
 import com.example.framegate.domain.model.FrameData
 
 /**
- * Fuente de frames que reproduce una lista fija de [FrameData] en orden. Es la
- * ruta de revisión principal (sin cámara real). Al agotar los frames, repite
- * desde el inicio para que el loop de la demo no se quede sin datos.
+ * Frame source that replays a fixed list of [FrameData] in sequential order. Used as the
+ * primary review pipeline (no live camera required). Upon exhausting frames, loops back
+ * to the start so the demo pipeline remains active.
  */
 class ReplayFrameSource(private val frames: List<FrameData>) : FrameSource {
 
@@ -31,16 +31,16 @@ class ReplayFrameSource(private val frames: List<FrameData>) : FrameSource {
         private const val STRIPE_LO: Byte = 40
         private const val STRIPE_HI = 210.toByte()
 
-        /** Fuente simple con un frame uniforme válido, para la demo. */
+        /** Simple source with a single uniform valid frame, for demo purposes. */
         fun uniform(): ReplayFrameSource {
             val bytes = FixtureFrameSource.createUniformFrame(DEFAULT_SIZE, DEFAULT_SIZE, VALID_LUMA)
             return ReplayFrameSource(listOf(frameOf(bytes, DEFAULT_SIZE)))
         }
 
         /**
-         * Secuencia de 24 frames del assessment (shaky/dark, transición, sharp/centred,
-         * sharp-in-one-quadrant). Es la ruta de revisión principal; los verdicts esperados
-         * están en expected_verdicts.csv. Frames y métricas documentados en metrics_reference.md.
+         * 24-frame sequence for assessment evaluation (shaky/dark, transition, sharp/centred,
+         * sharp-in-one-quadrant). Serves as the main review path; expected verdicts are in
+         * expected_verdicts.csv. Frames and metrics documented in metrics_reference.md.
          */
         fun assessment(): ReplayFrameSource {
             val s = ASSESSMENT_SIZE
@@ -53,7 +53,7 @@ class ReplayFrameSource(private val frames: List<FrameData>) : FrameSource {
             return ReplayFrameSource(frames)
         }
 
-        // Bloque oscuro/movido: uniforme y mitades alternan para generar movimiento.
+        // Dark/shaky block: uniform and split frames alternate to generate motion.
         private fun darkFrame(size: Int, index: Int): ByteArray =
             if (index % 2 == 0) {
                 FixtureFrameSource.createUniformFrame(size, size, DARK_LUMA)

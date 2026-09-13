@@ -14,27 +14,27 @@ class ReplayFrameSourceTest {
     )
 
     @Test
-    fun `emite los frames en orden`() {
+    fun `emits frames in order`() {
         val source = ReplayFrameSource(listOf(frame(1), frame(2)))
         assertEquals(1L, source.getNextFrame()?.timestampEpochMs)
         assertEquals(2L, source.getNextFrame()?.timestampEpochMs)
     }
 
     @Test
-    fun `cicla al llegar al final`() {
+    fun `cycles back upon reaching the end`() {
         val source = ReplayFrameSource(listOf(frame(1), frame(2)))
         source.getNextFrame() // 1
         source.getNextFrame() // 2
-        assertEquals(1L, source.getNextFrame()?.timestampEpochMs) // vuelve al inicio
+        assertEquals(1L, source.getNextFrame()?.timestampEpochMs) // returns to start
     }
 
     @Test
-    fun `sin frames devuelve null`() {
+    fun `returns null when no frames available`() {
         assertNull(ReplayFrameSource(emptyList()).getNextFrame())
     }
 
     @Test
-    fun `la fabrica uniform produce un frame usable`() {
+    fun `uniform factory produces usable frame`() {
         val frame = ReplayFrameSource.uniform().getNextFrame()
         assertEquals(100, frame?.width)
         assertEquals(1, frame?.pixelStride)

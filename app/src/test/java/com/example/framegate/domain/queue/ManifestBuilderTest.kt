@@ -13,7 +13,7 @@ class ManifestBuilderTest {
         idempotencyKey = "11111111-1111-1111-1111-111111111111",
         timestampEpochMillis = 1_757_592_000_000L,
         planName = "Plan Industrial",
-        // Más dígitos de los que un Double puede representar sin perder precisión.
+        // More digits than a Double can represent without precision loss.
         scaleFactorRaw = "1.234567890123456789",
         orientation = 90,
         roi = SerializableRoi(0.2f, 0.2f, 0.6f, 0.6f),
@@ -21,30 +21,31 @@ class ManifestBuilderTest {
     )
 
     private fun loadGolden(): String =
-        requireNotNull(javaClass.getResourceAsStream("/fixtures/manifest_golden.json")) { "falta golden" }
-            .bufferedReader().use { it.readText() }.trim()
+        requireNotNull(javaClass.getResourceAsStream("/fixtures/manifest_golden.json")) {
+            "manifest_golden.json missing"
+        }.bufferedReader().use { it.readText() }.trim()
 
     @Test
-    fun `manifest coincide byte a byte con el golden`() {
+    fun `manifest matches golden byte for byte`() {
         assertEquals(loadGolden(), ManifestBuilder.build(item()))
     }
 
     @Test
-    fun `scale_factor conserva todos sus digitos sin pasar por Double`() {
+    fun `scale_factor preserves all digits without converting through Double`() {
         val manifest = ManifestBuilder.build(item())
-        // El literal aparece intacto y SIN comillas (es número, no string).
+        // Literal appears intact and UNQUOTED (number type, not string).
         assertTrue(manifest.contains("\"scale_factor\":1.234567890123456789"))
     }
 
     @Test
-    fun `las medidas se redondean a 3 decimales`() {
+    fun `measurements are rounded to 3 decimal places`() {
         val manifest = ManifestBuilder.build(item())
         assertTrue(manifest.contains("\"mean_luma\":123.457"))
         assertTrue(manifest.contains("\"motion\":12.346"))
     }
 
     @Test
-    fun `el manifest tiene exactamente los campos del contrato`() {
+    fun `manifest contains exactly the fields required by contract`() {
         val manifest = Json.parseToJsonElement(ManifestBuilder.build(item())).jsonObject
         assertEquals(TOP_LEVEL_FIELDS, manifest.keys)
         assertEquals(REGION_FIELDS, manifest["region"]!!.jsonObject.keys)

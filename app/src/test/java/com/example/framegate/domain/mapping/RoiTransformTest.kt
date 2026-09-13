@@ -8,7 +8,7 @@ class RoiTransformTest {
 
     private val tol = 0.0001f
 
-    // ROI angosto y alto en la esquina superior izquierda.
+    // Narrow and tall ROI in the top-left corner.
     private val topLeft = NormalizedRoi(x = 0f, y = 0f, width = 0.2f, height = 0.4f)
 
     private fun assertRoi(expected: NormalizedRoi, actual: NormalizedRoi) {
@@ -19,40 +19,40 @@ class RoiTransformTest {
     }
 
     @Test
-    fun `sin rotacion ni espejo el ROI no cambia`() {
+    fun `without rotation or mirroring ROI remains unchanged`() {
         assertRoi(topLeft, RoiTransform.transform(topLeft, sensorRotation = 0))
     }
 
     @Test
-    fun `espejo horizontal manda el ROI al lado opuesto`() {
+    fun `horizontal mirroring moves ROI to opposite side`() {
         // x' = 1 - 0 - 0.2 = 0.8
         val result = RoiTransform.transform(topLeft, sensorRotation = 0, isMirrored = true)
         assertRoi(NormalizedRoi(x = 0.8f, y = 0f, width = 0.2f, height = 0.4f), result)
     }
 
     @Test
-    fun `rotacion 90 intercambia ejes y dimensiones`() {
+    fun `90 degrees rotation swaps axes and dimensions`() {
         // 90: x'=1-y-h=0.6, y'=x=0, w'=h=0.4, h'=w=0.2
         val result = RoiTransform.transform(topLeft, sensorRotation = 90)
         assertRoi(NormalizedRoi(x = 0.6f, y = 0f, width = 0.4f, height = 0.2f), result)
     }
 
     @Test
-    fun `rotacion 180 lleva el ROI a la esquina opuesta`() {
-        // 180: x'=1-x-w=0.8, y'=1-y-h=0.6, dimensiones iguales
+    fun `180 degrees rotation moves ROI to opposite corner`() {
+        // 180: x'=1-x-w=0.8, y'=1-y-h=0.6, identical dimensions
         val result = RoiTransform.transform(topLeft, sensorRotation = 180)
         assertRoi(NormalizedRoi(x = 0.8f, y = 0.6f, width = 0.2f, height = 0.4f), result)
     }
 
     @Test
-    fun `rotacion 270 intercambia ejes al otro lado`() {
+    fun `270 degrees rotation swaps axes to opposite side`() {
         // 270: x'=y=0, y'=1-x-w=0.8, w'=h=0.4, h'=w=0.2
         val result = RoiTransform.transform(topLeft, sensorRotation = 270)
         assertRoi(NormalizedRoi(x = 0f, y = 0.8f, width = 0.4f, height = 0.2f), result)
     }
 
     @Test
-    fun `sensor y display iguales se cancelan (rotacion neta cero)`() {
+    fun `equal sensor and display rotations cancel out (net zero rotation)`() {
         val result = RoiTransform.transform(topLeft, sensorRotation = 90, displayRotation = 90)
         assertRoi(topLeft, result)
     }

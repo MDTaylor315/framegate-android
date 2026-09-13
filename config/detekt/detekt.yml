@@ -334,7 +334,7 @@ naming:
     excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
     functionPattern: '[a-z][a-zA-Z0-9]*'
     excludeClassPattern: '$^'
-    # Los @Composable usan PascalCase por convención oficial de Jetpack Compose.
+    # @Composable functions use PascalCase per official Jetpack Compose convention.
     ignoreAnnotated: ['Composable']
   FunctionParameterNaming:
     active: true
@@ -611,8 +611,7 @@ style:
     maxJumpCount: 1
   MagicNumber:
     active: true
-    # Se excluyen los archivos de tema/UI de Compose, donde los literales de
-    # color (hex) y de dimensión son idiomáticos y no "números mágicos".
+    # Excludes Compose theme/UI files where color (hex) and dimension literals are idiomatic rather than "magic numbers".
     excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/*.kts', '**/ui/theme/**', '**/ui/**/*Screen.kt']
     ignoreNumbers:
       - '-1'

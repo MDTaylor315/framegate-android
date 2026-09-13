@@ -3,7 +3,7 @@ package com.example.framegate.domain.interfaces
 import com.example.framegate.domain.model.UploadResult
 
 interface UploadTransport {
-    //Simula envio HTTP POST /v1/captures con un JSON y un JPEG
+    // Simulates HTTP POST /v1/captures request carrying a JSON manifest and a JPEG payload
     suspend fun uploadCapture(
         idempotencyKey: String,
         manifestJson: String,

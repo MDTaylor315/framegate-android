@@ -5,18 +5,18 @@ import com.example.framegate.domain.model.Metrics
 import com.example.framegate.domain.model.Thresholds
 
 /**
- * Reducer puro: (estado, métricas, plan) -> nuevo estado. Arma tras N frames
- * buenos consecutivos; cualquier frame que falla resetea el contador.
+ * Pure reducer: (state, metrics, plan) -> new state. Arms after N consecutive
+ * valid frames; any failing frame resets the counter.
  */
 object GateReducer {
 
     /**
-     * El foco se evalúa como ratio contra el [focusBaseline] (pico visto), no
-     * como valor absoluto: exige al menos focusRatio del mejor foco de la escena.
+     * Focus is evaluated as a ratio against [focusBaseline] (peak observed focus), not
+     * as an absolute value: requires at least focusRatio of the best focus seen in the scene.
      */
     fun evaluate(metrics: Metrics, thresholds: Thresholds, focusBaseline: Float): Verdicts = Verdicts(
         focusOk = metrics.focus >= focusBaseline * thresholds.focusRatio,
-        // El brillo exige luma media suficiente y que no haya demasiados píxeles clippeados.
+        // Brightness requires sufficient mean luma and acceptable clipped pixel fraction.
         brightnessOk = metrics.meanLuma >= thresholds.minBrightness &&
             metrics.clippedFraction <= thresholds.maxClippedFraction,
         motionOk = metrics.motion <= thresholds.maxMotion,
@@ -30,14 +30,14 @@ object GateReducer {
             step == null -> state.copy(phase = GatePhase.Complete)
             terminal -> state
             else -> {
-                // El baseline se auto-calibra con el pico de foco visto.
+                // Baseline auto-calibrates with the peak focus observed.
                 val baseline = maxOf(state.focusBaseline, metrics.focus)
                 val verdicts = evaluate(metrics, step.thresholds, baseline)
                 val withBaseline = state.copy(focusBaseline = baseline)
                 if (verdicts.allPass) {
                     advanceHold(withBaseline, step.requiredHoldFrames)
                 } else {
-                    // Frame malo: resetea el contador y reporta qué mediciones fallan.
+                    // Bad frame: resets the counter and reports which measurements failed.
                     withBaseline.copy(phase = GatePhase.Blocked(verdicts.failing), stableFrames = 0)
                 }
             }
@@ -53,11 +53,11 @@ object GateReducer {
         }
     }
 
-    /** Confirma el disparo del paso armado (efecto del lado del ViewModel). */
+    /** Confirms firing of the armed step (side-effect handled by ViewModel). */
     fun fire(state: GateState): GateState =
         if (state.phase is GatePhase.Armed) state.copy(phase = GatePhase.Fired) else state
 
-    /** Avanza al siguiente paso tras disparar; Complete si no quedan más. */
+    /** Advances to the next step after firing; transitions to Complete if no steps remain. */
     fun advanceToNextStep(state: GateState, plan: CapturePlan): GateState {
         val next = state.stepIndex + 1
         return if (next < plan.steps.size) {

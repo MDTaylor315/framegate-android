@@ -7,16 +7,16 @@ import com.example.framegate.domain.model.width
 import kotlin.math.abs
 
 /**
- * Mide foco, brillo, clipping y movimiento sobre el plano de luma (planes[0]),
- * solo dentro del ROI y submuestreando (1 de cada 4 píxeles) para no recorrer
- * todo el frame en el hot path. El frame anterior se pasa como parámetro para
- * el movimiento, manteniendo la función pura.
+ * Measures focus, brightness, clipping, and motion over the luma plane (planes[0]),
+ * strictly within the ROI and sub-sampling (1 out of every 4 pixels) to keep
+ * hot-path performance optimal. The previous frame buffer is passed as a parameter for
+ * motion calculation, preserving function purity.
  */
 object MetricsAnalyzer {
 
-    private const val SAMPLE_STEP = 2          // 2 en x y 2 en y => 1 de cada 4
-    private const val CLIP_LOW = 16            // por debajo: negro aplastado
-    private const val CLIP_HIGH = 239          // por encima: blanco quemado
+    private const val SAMPLE_STEP = 2          // 2 in x and 2 in y => 1 out of 4 pixels
+    private const val CLIP_LOW = 16            // below this: crushed blacks
+    private const val CLIP_HIGH = 239          // above this: blown-out whites
 
     fun analyze(
         yBuffer: ByteArray,
@@ -44,7 +44,7 @@ object MetricsAnalyzer {
         val rowOffset = y * frame.rowStride
         var x = frame.rect.left
         while (x < frame.rect.right) {
-            // El byte del píxel x respeta el pixelStride (puede no estar pegado al vecino).
+            // Pixel x byte offset accounts for pixelStride (interleaved planes).
             val index = rowOffset + x * frame.pixelStride
             if (index in frame.y.indices) {
                 val luma = frame.y[index].toInt() and 0xFF
@@ -56,7 +56,7 @@ object MetricsAnalyzer {
         }
     }
 
-    // Agrupa los datos del frame para no pasar tantos parámetros sueltos.
+    // Encapsulates frame metadata to minimize parameter count.
     private class Frame(
         val y: ByteArray,
         val previous: ByteArray?,
@@ -65,7 +65,7 @@ object MetricsAnalyzer {
         val rect: BufferRect,
     )
 
-    // Vecino a la derecha (a SAMPLE_STEP columnas) para la energía de gradiente.
+    // Right neighbour (at SAMPLE_STEP columns offset) for gradient energy.
     private fun neighbourLuma(frame: Frame, index: Int, x: Int): Int? {
         val rightIndex = index + SAMPLE_STEP * frame.pixelStride
         val insideRoi = x + SAMPLE_STEP < frame.rect.right

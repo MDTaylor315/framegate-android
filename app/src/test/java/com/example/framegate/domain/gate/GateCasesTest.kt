@@ -12,8 +12,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Corre el GateReducer tick a tick contra gate_cases.json, cuyos estados
- * esperados se derivaron a mano de la fórmula del gate (no de la salida del código).
+ * Executes GateReducer step-by-step against gate_cases.json, where expected state
+ * transitions were manually derived from gate rules (not from code output).
  */
 class GateCasesTest {
 
@@ -41,13 +41,13 @@ class GateCasesTest {
 
     private fun load(): Cases {
         val text = requireNotNull(javaClass.getResourceAsStream("/fixtures/gate_cases.json")) {
-            "no está gate_cases.json"
+            "gate_cases.json not found"
         }.bufferedReader().use { it.readText() }
         return json.decodeFromString(Cases.serializer(), text)
     }
 
     @Test
-    fun `cada caso reproduce el estado esperado tick a tick`() {
+    fun `each case reproduces expected state tick by tick`() {
         val data = load()
         val plan = planOf(data)
 
@@ -85,7 +85,7 @@ class GateCasesTest {
         "Holding" -> GatePhase.Holding(requireNotNull(tick.held), holdFrames)
         "Armed" -> GatePhase.Armed
         "Blocked" -> GatePhase.Blocked(tick.failing.orEmpty().map(Measurement::valueOf).toSet())
-        else -> error("fase desconocida ${tick.phase}")
+        else -> error("unknown phase ${tick.phase}")
     }
 
     private companion object {

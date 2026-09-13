@@ -1,40 +1,40 @@
 # plan_expectations.md
 
-Resultado esperado al parsear `plan_messy.json`. Este documento es el oráculo:
-define el comportamiento correcto, y los tests deben coincidir con él.
+Expected results when parsing `plan_messy.json`. This document serves as the oracle spec:
+defines correct parser behavior, and unit tests must match it.
 
-## Resultado global
+## Overall Result
 
-- El parseo es exitoso (fail-soft): el plan no es null.
+- Parsing succeeds (fail-soft): plan is non-null.
 - `plan_name` = "Plan de Pruebas Sucio FrameGate".
-- `scale_factor` se conserva como string crudo `"1.234567890123456789"` (sin pasar por Double).
-- `created_at` = "2026-09-10T12:00:00" (se conserva tal cual; solo se emite diagnóstico por falta de zona horaria).
-- Claves desconocidas (`unknown_top_level_key`) se ignoran sin error.
+- `scale_factor` is preserved as a raw unquoted string `"1.234567890123456789"` (without passing through Double).
+- `created_at` = "2026-09-10T12:00:00" (preserved as-is; only emits a warning diagnostic for missing timezone offset).
+- Unknown top-level keys (`unknown_top_level_key`) are ignored without error.
 
-## Pasos resultantes (2 utilizables)
+## Resulting Steps (2 usable)
 
-| id | origen | notas |
+| id | origin | notes |
 |---|---|---|
-| step-01 | primer paso | focus_ratio (clave `FOCUS_RATIO`, casing mixto) `"0.7"` (string) → 0.7; min_brightness `"60.0"` (string) → 60.0; max_motion null → default 15.0; hold_frames `"5"` (string) → 5 |
-| step-03-null-thresholds | cuarto paso | thresholds null → todos por defecto (focus_ratio 0.6, brillo 50.0, motion 15.0); roi (0.1, 0.1, 0.4, 0.4) |
+| step-01 | first step | focus_ratio (key `FOCUS_RATIO`, mixed casing) `"0.7"` (string) → 0.7; min_brightness `"60.0"` (string) → 60.0; max_motion null → default 15.0; hold_frames `"5"` (string) → 5 |
+| step-03-null-thresholds | fourth step | thresholds null → all defaults (focus_ratio 0.6, brightness 50.0, motion 15.0); roi (0.1, 0.1, 0.4, 0.4) |
 
-Pasos descartados:
-- El segundo `step-01`: id duplicado → se descarta la repetición (se conserva el primero).
-- `step-02-desconocido`: tipo `PASO_DESCONOCIDO_FUTURO` desconocido → se omite.
+Discarded steps:
+- Second `step-01`: duplicate ID → duplicate is discarded (first occurrence kept).
+- `step-02-desconocido`: unknown type `PASO_DESCONOCIDO_FUTURO` → step omitted.
 
-## Diagnósticos esperados (por código)
+## Expected Diagnostics (by code)
 
-| code | severidad | motivo |
+| code | severity | reason |
 |---|---|---|
-| TIMESTAMP_NO_TZ | WARNING | `created_at` sin zona horaria; se asume UTC |
-| DUPLICATE_STEP_ID | WARNING | segundo `step-01` descartado |
-| UNKNOWN_STEP_TYPE | WARNING | `step-02-desconocido` con tipo desconocido |
-| MISSING_THRESHOLDS | WARNING | `step-03-null-thresholds` con thresholds null |
+| TIMESTAMP_NO_TZ | WARNING | `created_at` lacks timezone offset; assumes UTC |
+| DUPLICATE_STEP_ID | WARNING | second `step-01` discarded |
+| UNKNOWN_STEP_TYPE | WARNING | `step-02-desconocido` has unknown type |
+| MISSING_THRESHOLDS | WARNING | `step-03-null-thresholds` has null thresholds |
 
-No hay diagnósticos de severidad ERROR (el plan es utilizable).
+No ERROR severity diagnostics are emitted (plan remains usable).
 
-## Casos fail-hard (plan completo inválido, plan = null, con ERROR)
+## Fail-Hard Cases (entire plan invalid, plan = null, with ERROR)
 
-- JSON sintácticamente inválido → `INVALID_JSON`.
-- Sin lista `steps` → `NO_STEPS`.
-- `steps` presente pero ningún paso utilizable → `NO_USABLE_STEPS`.
+- Syntactically invalid JSON → `INVALID_JSON`.
+- Missing `steps` array → `NO_STEPS`.
+- `steps` present but no usable steps → `NO_USABLE_STEPS`.

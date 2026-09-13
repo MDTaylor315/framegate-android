@@ -33,7 +33,7 @@ enum class AppScreen {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // El asset (necesita Context) se lee aquí; AppGraph solo lo parsea.
+        // The asset (requires Context) is read here; AppGraph only parses it.
         val planJson = assets.open("fixtures/plan_messy.json").bufferedReader().use { it.readText() }
         AppGraph.init(filesDir, planJson)
         enableEdgeToEdge()
@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun FrameGateApp() {
-    // rememberSaveable: conserva la pantalla activa al recrear la Activity (rotación).
+    // rememberSaveable: preserves the active screen upon Activity recreation (e.g. screen rotation).
     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.CAPTURE) }
 
     Scaffold(

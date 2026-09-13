@@ -1,11 +1,11 @@
 package com.example.framegate.domain.model
 
 data class Thresholds(
-    // Fracción del foco baseline (pico visto) que se exige; ratio, no absoluto.
+    // Fraction of baseline focus (peak seen) required; ratio, not absolute.
     val focusRatio: Double = DEFAULT_FOCUS_RATIO,
     val minBrightness: Double = DEFAULT_MIN_BRIGHTNESS,
     val maxMotion: Double = DEFAULT_MAX_MOTION,
-    // Fracción máxima de píxeles quemados/aplastados que se tolera para el brillo.
+    // Maximum fraction of clipped/blown-out pixels tolerated for valid brightness.
     val maxClippedFraction: Double = DEFAULT_MAX_CLIPPED_FRACTION,
 ) {
     companion object {

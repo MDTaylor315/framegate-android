@@ -1,24 +1,24 @@
 package com.example.framegate.ui.capture
 
 data class CaptureUiState(
-    val gateStatusText: String = "Inactivo",
+    val gateStatusText: String = "Inactive",
     val currentStepIndex: Int = 0,
     val fps: Float = 0f,
-    // Mediciones del último frame, para el HUD.
+    // Latest frame measurements, for HUD display.
     val focus: Float = 0f,
     val brightness: Float = 0f,
     val motion: Float = 0f,
-    // Rendimiento del hot path.
+    // Hot-path processing performance metrics.
     val msPerFrame: Float = 0f,
     val droppedFrames: Int = 0,
-    // Rectángulo del overlay en coordenadas de vista, calculado por el mapper.
+    // Overlay bounding box in view space coordinates, computed by the coordinate mapper.
     val overlayRect: OverlayRect? = null,
-    // Diagnósticos del parseo del plan, ya formateados como texto plano.
+    // Plan parse diagnostics, formatted as plain text lines.
     val planDiagnostics: List<String> = emptyList(),
-    // Etiqueta de la configuración de cámara activa (rotación/espejo).
+    // Active camera configuration label (rotation/mirroring).
     val cameraConfigLabel: String = "0°",
 )
 
-/** Rectángulo en píxeles de pantalla, listo para dibujar (sin más cálculo en la UI). */
+/** Bounding rectangle in display pixels, ready for rendering (no further UI calculations). */
 data class OverlayRect(val left: Float, val top: Float, val width: Float, val height: Float)
 

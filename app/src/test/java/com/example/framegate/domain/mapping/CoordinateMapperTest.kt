@@ -9,7 +9,7 @@ import org.junit.Test
 
 class CoordinateMapperTest {
     @Test
-    fun `map ROI normal sin rotacion calcula buffer y view correctamente`(){
+    fun `map unrotated normal ROI correctly computes buffer and view rects`(){
         val roi = NormalizedRoi(x=0.25f, y=0.25f, width = 0.5f, height = 0.5f)
         val mapping =CoordinateMapper.mapCoordinates(
             normalizedRoi = roi,
@@ -22,10 +22,10 @@ class CoordinateMapperTest {
             scaleMode = ScaleMode.CROP
         )
 
-        //Verificar Buffer
-        //0.25 * 1920 = 480
+        // Verify Buffer
+        // 0.25 * 1920 = 480
         assertEquals(480, mapping.bufferRect.left)
-        ///(0.25 + 0.5) * 1920 = 1440
+        // (0.25 + 0.5) * 1920 = 1440
         assertEquals(1440, mapping.bufferRect.right)
         // 0.25 * 1080 = 270
         assertEquals(270, mapping.bufferRect.top)
@@ -34,12 +34,12 @@ class CoordinateMapperTest {
     }
 
     @Test
-    fun `map rotacion de 90 grados intercambia ancho y alto efectivo`() {
+    fun `map 90 degrees rotation swaps effective width and height`() {
         val roi = NormalizedRoi(x = 0.0f, y = 0.0f, width = 1.0f, height = 1.0f)
         val mapping = CoordinateMapper.mapCoordinates(
             bufferWidth = 1920,
             bufferHeight = 1080,
-            sensorRotation = 90, // Rotación vertical
+            sensorRotation = 90, // Portrait rotation
             isMirrored = false,
             viewWidth = 1080f,
             viewHeight = 1920f,
@@ -51,7 +51,7 @@ class CoordinateMapperTest {
     }
 
     @Test
-    fun `map en modo FIT genera offsets positivos para barras negras`() {
+    fun `map in FIT mode generates positive letterbox offsets`() {
         val roi = NormalizedRoi(x = 0.0f, y = 0.0f, width = 1.0f, height = 1.0f)
         val mapping = CoordinateMapper.mapCoordinates(
             bufferWidth = 1920,
@@ -59,18 +59,18 @@ class CoordinateMapperTest {
             sensorRotation = 90,
             isMirrored = false,
             viewWidth = 1080f,
-            viewHeight = 2400f, // Pantalla muy alta
+            viewHeight = 2400f, // Tall screen ratio
             scaleMode = ScaleMode.FIT,
             normalizedRoi = roi
         )
 
-        //(2400-1920) / 2 = 240
+        // (2400 - 1920) / 2 = 240
         assertEquals(240.0f, mapping.viewRect.top, 0.01f)
 
     }
 
     @Test
-    fun `map con ROI fuera de limites se limita con coerceIn sin hacer crash`() {
+    fun `map with out of bounds ROI is clamped by coerceIn without crashing`() {
         val invalidRoi = NormalizedRoi(x = -0.5f, y = 0.0f, width = 2.0f, height = 1.0f)
         val mapping = CoordinateMapper.mapCoordinates(
             bufferWidth = 1920,

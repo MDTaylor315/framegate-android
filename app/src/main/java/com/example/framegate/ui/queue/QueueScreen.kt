@@ -50,7 +50,7 @@ fun QueueScreen(
         }
     }
 
-    // Al llegar un elemento nuevo (la lista crece), sube al tope para verlo.
+    // When a new element arrives (list grows), auto-scroll to top to reveal it.
     LaunchedEffect(uiState.items.size) {
         if (uiState.items.isNotEmpty()) listState.animateScrollToItem(0)
     }

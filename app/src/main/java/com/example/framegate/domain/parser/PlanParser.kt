@@ -14,9 +14,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 
 /**
- * Decodifica un plan tolerando entradas "sucias" (casing mixto, números como
- * string, nulos, claves desconocidas...). Fail-soft por paso, fail-hard solo si
- * el plan entero es inutilizable. Reporta diagnósticos tipados.
+ * Decodes a plan tolerating "dirty" inputs (mixed casing, numbers as
+ * strings, nulls, unknown keys...). Fail-soft per step, fail-hard only if
+ * the entire plan is unusable. Reports typed diagnostics.
  */
 class PlanParser {
 
@@ -30,7 +30,7 @@ class PlanParser {
 
         val root = runCatching { json.parseToJsonElement(jsonString).jsonObject }.getOrNull()
         if (root == null) {
-            diagnostics += Diagnostic.error("INVALID_JSON", "JSON inválido o vacío.")
+            diagnostics += Diagnostic.error("INVALID_JSON", "Invalid or empty JSON.")
             return PlanParseResult(plan = null, diagnostics = diagnostics)
         }
 
@@ -38,7 +38,7 @@ class PlanParser {
         if (!hasTimezone(createdAt)) {
             diagnostics += Diagnostic.warning(
                 "TIMESTAMP_NO_TZ",
-                "'created_at' ($createdAt) no tiene zona horaria; se asume UTC.",
+                "'created_at' ($createdAt) missing timezone offset; assuming UTC.",
             )
         }
 
@@ -47,11 +47,11 @@ class PlanParser {
 
         val plan = when {
             stepsArray == null -> {
-                diagnostics += Diagnostic.error("NO_STEPS", "El plan no contiene la lista 'steps'.")
+                diagnostics += Diagnostic.error("NO_STEPS", "Plan does not contain a 'steps' array.")
                 null
             }
             steps.isEmpty() -> {
-                diagnostics += Diagnostic.error("NO_USABLE_STEPS", "Ningún paso del plan es utilizable.")
+                diagnostics += Diagnostic.error("NO_USABLE_STEPS", "No steps in the plan are usable.")
                 null
             }
             else -> CapturePlan(
@@ -78,7 +78,7 @@ class PlanParser {
             if (!seenIds.add(id)) {
                 diagnostics += Diagnostic.warning(
                     "DUPLICATE_STEP_ID",
-                    "Id de paso duplicado '$id'; se descarta la repetición.",
+                    "Duplicate step ID '$id'; discarding duplicate.",
                 )
                 return@forEachIndexed
             }
@@ -95,7 +95,7 @@ class PlanParser {
         if (type == null) {
             diagnostics += Diagnostic.warning(
                 "UNKNOWN_STEP_TYPE",
-                "Paso '$id': tipo desconocido '$typeRaw'; se omite el paso.",
+                "Step '$id': unknown type '$typeRaw'; omitting step.",
             )
             return null
         }
@@ -117,7 +117,7 @@ class PlanParser {
         if (obj == null) {
             diagnostics += Diagnostic.warning(
                 "MISSING_THRESHOLDS",
-                "Paso '$id': 'thresholds' ausente o null; se usan los valores por defecto.",
+                "Step '$id': 'thresholds' missing or null; using default values.",
             )
             return Thresholds()
         }
@@ -133,7 +133,7 @@ class PlanParser {
         if (obj == null) {
             diagnostics += Diagnostic.warning(
                 "MISSING_ROI",
-                "Paso '$id': 'roi' ausente o null; se usa el ROI completo por defecto.",
+                "Step '$id': 'roi' missing or null; using default full ROI.",
             )
             return NormalizedRoi()
         }
@@ -148,11 +148,11 @@ class PlanParser {
     private fun hasTimezone(timestamp: String): Boolean =
         timestamp.endsWith("Z") || TIMEZONE_OFFSET.containsMatchIn(timestamp)
 
-    // Lee la primera clave presente como texto (soporta casing mixto vía alias).
+    // Reads the first present key as text (supports mixed casing via aliases).
     private fun JsonObject.string(vararg keys: String): String? =
         keys.firstNotNullOfOrNull { (this[it] as? JsonPrimitive)?.content }
 
-    // Lee un número aceptando también el caso "número enviado como string".
+    // Reads a number, also accepting cases where numbers are sent as strings.
     private fun JsonObject.number(vararg keys: String): Double? =
         keys.firstNotNullOfOrNull { key ->
             (this[key] as? JsonPrimitive)?.let { it.doubleOrNull ?: it.content.toDoubleOrNull() }

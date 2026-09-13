@@ -4,8 +4,8 @@ import kotlin.math.min
 import kotlin.math.pow
 
 /**
- * Backoff exponencial con jitter, delay capado e intentos capados. El jitter se
- * inyecta como [random] para que los tests sean deterministas.
+ * Exponential backoff with jitter, capped delay, and max attempt limits.
+ * Jitter is injected via [random] to allow deterministic testing.
  */
 class RetryPolicy(
     private val baseDelayMillis: Long = DEFAULT_BASE_DELAY_MILLIS,
@@ -16,7 +16,7 @@ class RetryPolicy(
     fun canRetry(attempts: Int): Boolean = attempts < maxAttempts
 
     fun delayForAttempt(attempt: Int, random: () -> Double): Long {
-        require(attempt >= 1) { "attempt debe ser >= 1, fue $attempt" }
+        require(attempt >= 1) { "attempt must be >= 1, was $attempt" }
 
         val exponential = baseDelayMillis * 2.0.pow(attempt - 1)
         val capped = min(exponential, maxDelayMillis.toDouble())

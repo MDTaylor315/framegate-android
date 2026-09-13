@@ -18,9 +18,9 @@ import com.example.framegate.domain.queue.UploadEngine
 import java.io.File
 
 /**
- * Contenedor de dependencias a mano. Comparte una única instancia del store, el
- * transporte, el reloj y el motor de subida entre pantallas. Se inicializa desde
- * la Activity con el directorio de la app.
+ * Manual dependency container. Shares a single instance of the store, transport,
+ * clock, and upload engine across screens. Initialized from the Activity using
+ * the app's files directory.
  */
 object AppGraph {
 
@@ -46,9 +46,9 @@ object AppGraph {
     private lateinit var clock: Clock
 
     /**
-     * Inicializa el grafo. [planJson] es el contenido del fixture del plan, que
-     * la Activity lee del asset (los assets necesitan Context, por eso se lee
-     * afuera y aquí solo se parsea). Idempotente.
+     * Initializes the graph. [planJson] is the raw content of the plan fixture, which
+     * the Activity reads from assets (assets require Context, so it is read
+     * outside and only parsed here). Idempotent.
      */
     @Synchronized
     fun init(filesDir: File, planJson: String) {
@@ -58,9 +58,9 @@ object AppGraph {
         queueStore = JournalQueueStore(journalFile)
         captureStore = CaptureStore(File(filesDir, "captures"))
         clock = SystemClock()
-        // Guion de demostración: la 1ª subida se recupera tras backoff y la 2ª (422)
-        // queda terminal, para que la pantalla Queue muestre estados variados y el
-        // reintento manual sea observable. El retry/backoff se evalúa igual en tests.
+        // Demo script: 1st upload recovers after backoff and 2nd (422)
+        // stays terminal, so the Queue screen displays varied states and manual
+        // retries are observable. Retry/backoff behavior is evaluated similarly in tests.
         transport = FakeUploadTransport(FailureScript.demo())
         uploadEngine = UploadEngine(queueStore, transport, clock, captureStore)
 
@@ -72,7 +72,7 @@ object AppGraph {
     private fun loadPlan(planJson: String) {
         val result = PlanParser().parse(planJson)
         planDiagnostics = result.diagnostics
-        // Si el plan es inválido, se usa uno mínimo por defecto para no bloquear la app.
+        // If the plan is invalid, a minimal default plan is used to avoid crashing/blocking the app.
         capturePlan = result.plan ?: defaultPlan()
     }
 

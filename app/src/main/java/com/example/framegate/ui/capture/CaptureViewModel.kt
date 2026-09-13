@@ -39,9 +39,9 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 /**
- * El loop pide frames a [FrameSource], los mide y alimenta los flujos fuente
- * (_gateState, _lastMetrics, _isCapturing). El uiState se DERIVA de esos flujos
- * con combine/stateIn; no se muta a mano.
+ * The capture loop pulls frames from [FrameSource], measures metrics, and updates source flows
+ * (_gateState, _lastMetrics, _isCapturing). The uiState is DERIVED from these flows using
+ * combine/stateIn; it is never mutated manually.
  */
 class CaptureViewModel(
     private val queueStore: JournalQueueStore = AppGraph.queueStore,
@@ -59,18 +59,18 @@ class CaptureViewModel(
 
     private var viewSize: Pair<Int, Int>? = null
 
-    // Geometría del último frame recibido, para dimensionar el overlay con datos reales
-    // (no constantes) y respetar su rotación/espejo.
+    // Geometry of the last received frame, used to size the overlay with actual frame data
+    // (rather than hardcoded values) and respect rotation/mirroring.
     private var frameGeometry: FrameData? = null
 
-    // El plan se carga desde el fixture (parseado en AppGraph), no se hardcodea.
+    // The plan is loaded from the fixture (parsed in AppGraph), not hardcoded.
     private val plan: CapturePlan = AppGraph.capturePlan
 
-    // Diagnósticos del plan ya parseado; estables en la sesión (no se re-parsea). Texto plano.
+    // Parsed plan diagnostics; stable for the session (never re-parsed). Formatted plain text.
     private val planDiagnostics: List<String> = AppGraph.planDiagnostics.map { it.toString() }
 
-    // El overlay y la config de cámara se combinan aparte para no exceder los 5
-    // flujos del combine principal; ambos afectan a cómo se ve la vista.
+    // Overlay and camera config are combined separately to keep the main combine under 5 streams;
+    // both affect view-space rendering.
     private val overlayAndConfig = combine(_overlay, _cameraConfig) { overlay, config -> overlay to config }
 
     val uiState: StateFlow<CaptureUiState> = combine(
@@ -99,8 +99,8 @@ class CaptureViewModel(
         initialValue = CaptureUiState(planDiagnostics = planDiagnostics),
     )
 
-    // RENDEZVOUS + trySend: un efecto emitido sin colector activo (p. ej. durante
-    // la recreación por rotación) se descarta en vez de bufferizarse y reemitirse.
+    // RENDEZVOUS + trySend: an effect emitted without an active collector (e.g., during
+    // Activity rotation recreation) is dropped rather than buffered and re-emitted.
     private val _uiEffect = Channel<CaptureUiEffect>(Channel.RENDEZVOUS)
     val uiEffect = _uiEffect.receiveAsFlow()
 
@@ -121,7 +121,7 @@ class CaptureViewModel(
         }
     }
 
-    // Calcula el recuadro del overlay con el mapper (nunca en el Composable).
+    // Computes the overlay rectangle via coordinate mapper (never inside Composables).
     private fun recomputeOverlay() {
         val (w, h) = viewSize?.takeIf { it.first > 0 && it.second > 0 } ?: return
         val frame = frameGeometry ?: return
@@ -133,7 +133,7 @@ class CaptureViewModel(
             isMirrored = frame.isMirrored,
             viewWidth = w.toFloat(),
             viewHeight = h.toFloat(),
-            // FIT encaja todo el buffer en la vista, así el recuadro del ROI se ve completo.
+            // FIT mode scales buffer into view, allowing full ROI box visibility.
             scaleMode = ScaleMode.FIT,
             normalizedRoi = step.roi,
         )
@@ -148,7 +148,7 @@ class CaptureViewModel(
         _isCapturing.value = true
         sendEffect(CaptureUiEffect.ShowToast("Loop de captura iniciado"))
 
-        // El análisis (trabajo de CPU) corre fuera del main thread.
+        // Analysis (CPU work) runs off the main thread.
         captureJob = viewModelScope.launch(Dispatchers.Default) {
             while (true) {
                 delay(FRAME_INTERVAL_MS)
@@ -158,7 +158,7 @@ class CaptureViewModel(
         }
     }
 
-    // ROI del paso en coordenadas del buffer del frame actual, vía el mismo mapper que el overlay.
+    // Step ROI in buffer coordinates for the current frame, using the same mapper as overlay.
     private fun stepBufferRect(step: CaptureStep, frame: FrameData): BufferRect =
         CoordinateMapper.mapCoordinates(
             bufferWidth = frame.width,
@@ -171,16 +171,16 @@ class CaptureViewModel(
         ).bufferRect
 
     private fun processFrame(rawFrame: FrameData) {
-        // Aplica la configuración de cámara activa al frame de la fixture (que no
-        // trae orientación), para ejercitar el mapeo en las 4 configuraciones.
+        // Applies active camera configuration to fixture frame (which lacks orientation metadata),
+        // exercising mapping across all 4 camera configurations.
         val config = _cameraConfig.value
         val frame = rawFrame.copy(sensorRotation = config.sensorRotation, isMirrored = config.isMirrored)
 
-        // Guarda la geometría real del frame y reproyecta el overlay con ella.
+        // Saves actual frame geometry and re-project overlay with it.
         frameGeometry = frame
         recomputeOverlay()
 
-        // Se mide solo dentro del ROI del paso activo, no el frame completo.
+        // Measures strictly within the active step ROI, not the whole frame.
         val step = plan.steps[_gateState.value.stepIndex.coerceIn(0, plan.steps.lastIndex)]
         val roi = stepBufferRect(step, frame)
 
@@ -188,7 +188,7 @@ class CaptureViewModel(
         val metrics = MetricsAnalyzer.analyze(frame.yBuffer, frame.rowStride, roi, frame.pixelStride)
         val elapsedMs = (System.nanoTime() - startNs) / NANOS_PER_MILLI
 
-        // Si analizar tardó más que el intervalo entre frames, se habría perdido uno.
+        // If processing takes longer than frame interval, a frame was dropped.
         val dropped = _perf.value.dropped + if (elapsedMs > FRAME_INTERVAL_MS) 1 else 0
         _perf.value = PerfStats(msPerFrame = elapsedMs.toFloat(), dropped = dropped)
 
@@ -205,10 +205,10 @@ class CaptureViewModel(
     }
 
     private fun captureItem(step: CaptureStep, metrics: Metrics, bytes: ByteArray): QueueItem {
-        // Id único por registro (no derivado del contador de frame, que reinicia por
-        // corrida y colisionaría al reencolar o relanzar la app).
+        // Unique ID per capture record (not derived from frame counter, which resets per run
+        // and would collide when re-queuing or restarting the app).
         val id = "cap_${UUID.randomUUID()}"
-        // Se escribe el artefacto en disco ANTES de encolar el registro.
+        // Binary artifact is written to disk BEFORE queuing the record.
         val artifactPath = captureStore.write(id, bytes)
         return QueueItem(
             id = id,
@@ -233,12 +233,12 @@ class CaptureViewModel(
     }
 
     private fun stopCapture() {
-        // Detener para el loop y vuelve al inicio; Iniciar arranca de nuevo desde el primer paso.
+        // Stopping cancels loop and resets to start; Starting again restarts from step 1.
         captureJob?.cancel()
         _gateState.value = GateState()
         _isCapturing.value = false
         _perf.value = PerfStats()
-        // Redibuja el overlay con el ROI del primer paso, coherente con el reinicio.
+        // Redraws overlay with step 1 ROI, consistent with reset state.
         recomputeOverlay()
         sendEffect(CaptureUiEffect.ShowToast("Loop de captura detenido"))
     }

@@ -1,15 +1,15 @@
 package com.example.framegate.domain.gate
 
-/** Qué medición evalúa el gate. Sirve para decir cuál está bloqueando. */
+/** Which measurement is being evaluated by the gate. Used to report blocking metrics. */
 enum class Measurement { FOCUS, BRIGHTNESS, MOTION }
 
 /**
- * Fase del gate para un paso:
- * - Blocked: alguna medición falla; `failing` dice cuáles (para el HUD).
- * - Holding: todas pasan; acumulando frames buenos (held de N).
- * - Armed: se completó la ventana; listo para disparar.
- * - Fired: se disparó la captura de este paso.
- * - Complete: no quedan más pasos.
+ * Gate phase for a step:
+ * - Blocked: one or more measurements fail; `failing` indicates which ones (for HUD).
+ * - Holding: all pass; accumulating valid frames (held of N required).
+ * - Armed: hold window completed; ready to fire capture.
+ * - Fired: capture triggered for this step.
+ * - Complete: no remaining steps.
  */
 sealed interface GatePhase {
     data class Blocked(val failing: Set<Measurement>) : GatePhase
@@ -20,18 +20,18 @@ sealed interface GatePhase {
 }
 
 /**
- * Estado inmutable del gate. El reducer recibe uno y devuelve otro; no hay
- * estado mutable escondido.
+ * Immutable state of the gate. The reducer receives one state and produces another;
+ * no hidden mutable state.
  */
 data class GateState(
     val phase: GatePhase = GatePhase.Blocked(emptySet()),
     val stableFrames: Int = 0,
     val stepIndex: Int = 0,
-    // Pico de foco visto; sirve de referencia para evaluar el foco como ratio.
+    // Peak focus value observed; serves as reference for evaluating focus ratio.
     val focusBaseline: Float = 0f,
 )
 
-/** Verdict por medición: qué pasó y qué falló en un frame. */
+/** Verdict per measurement: pass/fail breakdown for a frame. */
 data class Verdicts(
     val focusOk: Boolean,
     val brightnessOk: Boolean,
