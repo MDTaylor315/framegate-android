@@ -58,8 +58,10 @@ object AppGraph {
         queueStore = JournalQueueStore(journalFile)
         captureStore = CaptureStore(File(filesDir, "captures"))
         clock = SystemClock()
-        // Sin guion de fallos: en la app real el transporte simplemente almacena.
-        transport = FakeUploadTransport(FailureScript.empty())
+        // Guion de demostración: la 1ª subida se recupera tras backoff y la 2ª (422)
+        // queda terminal, para que la pantalla Queue muestre estados variados y el
+        // reintento manual sea observable. El retry/backoff se evalúa igual en tests.
+        transport = FakeUploadTransport(FailureScript.demo())
         uploadEngine = UploadEngine(queueStore, transport, clock, captureStore)
 
         loadPlan(planJson)

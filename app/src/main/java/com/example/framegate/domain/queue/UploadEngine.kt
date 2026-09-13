@@ -17,6 +17,9 @@ class UploadEngine(
     private val retryPolicy: RetryPolicy = RetryPolicy(),
     private val random: () -> Double = Math::random,
 ) {
+    // Tope de intentos, para que la UI pueda mostrar "intento N/max".
+    val maxAttempts: Int get() = retryPolicy.maxAttempts
+
     suspend fun drain() {
         for (item in store.getPending()) {
             processItem(item)

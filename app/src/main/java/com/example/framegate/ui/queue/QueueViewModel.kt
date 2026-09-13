@@ -33,7 +33,8 @@ class QueueViewModel(
     ) { items, isDraining ->
         QueueUiState(
             isLoading = isDraining,
-            items = items.map { it.toUiModel() },
+            // Más recientes primero, para no tener que desplazarse hasta el final.
+            items = items.asReversed().map { it.toUiModel(uploadEngine.maxAttempts) },
         )
     }.stateIn(
         scope = viewModelScope,
@@ -80,12 +81,12 @@ class QueueViewModel(
     }
 }
 
-private fun QueueItem.toUiModel(): QueueItemUiModel = QueueItemUiModel(
+private fun QueueItem.toUiModel(maxAttempts: Int): QueueItemUiModel = QueueItemUiModel(
     id = id,
     timestamp = timestampEpochMillis.toString(),
     statusText = when (status) {
-        QueueItemStatus.PENDING -> "Pendiente"
-        QueueItemStatus.UPLOADING -> "Subiendo..."
+        QueueItemStatus.PENDING -> if (attempts > 0) "Reintentando (intento $attempts/$maxAttempts)" else "Pendiente"
+        QueueItemStatus.UPLOADING -> "Subiendo... (intento $attempts/$maxAttempts)"
         QueueItemStatus.COMPLETED -> "Completado"
         QueueItemStatus.FAILED -> "Error: ${lastError ?: "falló"}"
     },
