@@ -27,9 +27,3 @@ local.properties
 *.ap_
 *.keystore
 *.jks
-
-# --- Material de planificación / prueba técnica (NO forma parte del entregable) ---
-/FrameGate_Checklist_Auditoria.md
-/FrameGate_Explicacion_Proyecto.md
-/FrameGate_Plan_Maestro.md
-*.pdf
