@@ -1,0 +1,41 @@
+{
+  "description": "Coordenadas golden buffer/view derivadas a mano de la fórmula de RoiTransform + CoordinateMapper con aritmética de precisión simple (Float), igual que la especifica el código. Buffer 1920x1080, view 1080x1920, ScaleMode CROP, displayRotation 0. ROI base asimétrico x=0.1 y=0.2 w=0.3 h=0.4. Precisión de comparación: 0.5 px.",
+  "buffer": { "width": 1920, "height": 1080 },
+  "view": { "width": 1080.0, "height": 1920.0 },
+  "scaleMode": "CROP",
+  "roi": { "x": 0.1, "y": 0.2, "width": 0.3, "height": 0.4 },
+  "cases": [
+    {
+      "name": "rot0_nomirror",
+      "sensorRotation": 0,
+      "displayRotation": 0,
+      "mirrored": false,
+      "bufferRect": { "left": 192, "top": 216, "right": 768, "bottom": 648 },
+      "viewRect": { "left": -825.333, "top": 384.0, "right": 198.667, "bottom": 1152.0 }
+    },
+    {
+      "name": "rot90_nomirror",
+      "sensorRotation": 90,
+      "displayRotation": 0,
+      "mirrored": false,
+      "bufferRect": { "left": 768, "top": 108, "right": 1536, "bottom": 432 },
+      "viewRect": { "left": 432.0, "top": 192.0, "right": 864.0, "bottom": 768.0 }
+    },
+    {
+      "name": "rot180_nomirror",
+      "sensorRotation": 180,
+      "displayRotation": 0,
+      "mirrored": false,
+      "bufferRect": { "left": 1151, "top": 432, "right": 1728, "bottom": 864 },
+      "viewRect": { "left": 881.333, "top": 768.0, "right": 1905.333, "bottom": 1536.0 }
+    },
+    {
+      "name": "rot270_mirror",
+      "sensorRotation": 270,
+      "displayRotation": 0,
+      "mirrored": true,
+      "bufferRect": { "left": 384, "top": 108, "right": 1152, "bottom": 432 },
+      "viewRect": { "left": 216.0, "top": 192.0, "right": 648.0, "bottom": 768.0 }
+    }
+  ]
+}
