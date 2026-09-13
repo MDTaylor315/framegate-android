@@ -56,6 +56,10 @@ class CaptureViewModel(
 
     private var viewSize: Pair<Int, Int>? = null
 
+    // Geometría del último frame recibido, para dimensionar el overlay con datos reales
+    // (no constantes) y respetar su rotación/espejo.
+    private var frameGeometry: FrameData? = null
+
     // El plan se carga desde el fixture (parseado en AppGraph), no se hardcodea.
     private val plan: CapturePlan = AppGraph.capturePlan
 
@@ -107,13 +111,14 @@ class CaptureViewModel(
 
     // Calcula el recuadro del overlay con el mapper (nunca en el Composable).
     private fun recomputeOverlay() {
-        val (w, h) = viewSize ?: return
-        if (w <= 0 || h <= 0) return
+        val (w, h) = viewSize?.takeIf { it.first > 0 && it.second > 0 } ?: return
+        val frame = frameGeometry ?: return
         val step = plan.steps[_gateState.value.stepIndex.coerceIn(0, plan.steps.lastIndex)]
         val mapping = CoordinateMapper.mapCoordinates(
-            bufferWidth = FRAME_WIDTH,
-            bufferHeight = FRAME_HEIGHT,
-            sensorRotation = 0,
+            bufferWidth = frame.width,
+            bufferHeight = frame.height,
+            sensorRotation = frame.sensorRotation,
+            isMirrored = frame.isMirrored,
             viewWidth = w.toFloat(),
             viewHeight = h.toFloat(),
             normalizedRoi = step.roi,
@@ -139,8 +144,26 @@ class CaptureViewModel(
         }
     }
 
+    // ROI del paso en coordenadas del buffer del frame actual, vía el mismo mapper que el overlay.
+    private fun stepBufferRect(step: CaptureStep, frame: FrameData): BufferRect =
+        CoordinateMapper.mapCoordinates(
+            bufferWidth = frame.width,
+            bufferHeight = frame.height,
+            sensorRotation = frame.sensorRotation,
+            isMirrored = frame.isMirrored,
+            viewWidth = frame.width.toFloat(),
+            viewHeight = frame.height.toFloat(),
+            normalizedRoi = step.roi,
+        ).bufferRect
+
     private fun processFrame(frame: FrameData) {
-        val roi = BufferRect(0, 0, frame.width, frame.height)
+        // Guarda la geometría real del frame y reproyecta el overlay con ella.
+        frameGeometry = frame
+        recomputeOverlay()
+
+        // Se mide solo dentro del ROI del paso activo, no el frame completo.
+        val step = plan.steps[_gateState.value.stepIndex.coerceIn(0, plan.steps.lastIndex)]
+        val roi = stepBufferRect(step, frame)
 
         val startNs = System.nanoTime()
         val metrics = MetricsAnalyzer.analyze(frame.yBuffer, frame.rowStride, roi, frame.pixelStride)
@@ -207,8 +230,6 @@ class CaptureViewModel(
         const val FRAMES_PER_SECOND = 3.3f
         const val SUBSCRIPTION_TIMEOUT_MS = 5000L
         const val NANOS_PER_MILLI = 1_000_000.0
-        const val FRAME_WIDTH = 1920
-        const val FRAME_HEIGHT = 1080
     }
 }
 
