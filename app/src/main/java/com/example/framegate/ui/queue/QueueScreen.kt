@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -37,6 +38,8 @@ fun QueueScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
+    val listState = rememberLazyListState()
+
     LaunchedEffect(Unit) {
         viewModel.uiEffect.collect { effect ->
             when (effect) {
@@ -45,6 +48,11 @@ fun QueueScreen(
                 }
             }
         }
+    }
+
+    // Al llegar un elemento nuevo (la lista crece), sube al tope para verlo.
+    LaunchedEffect(uiState.items.size) {
+        if (uiState.items.isNotEmpty()) listState.animateScrollToItem(0)
     }
 
 
@@ -72,6 +80,7 @@ fun QueueScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
