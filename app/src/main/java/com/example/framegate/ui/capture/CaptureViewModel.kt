@@ -10,6 +10,7 @@ import com.example.framegate.domain.gate.GateReducer
 import com.example.framegate.domain.gate.GateState
 import com.example.framegate.domain.interfaces.FrameSource
 import com.example.framegate.domain.mapping.CoordinateMapper
+import com.example.framegate.domain.mapping.ScaleMode
 import com.example.framegate.domain.model.BufferRect
 import com.example.framegate.domain.model.CameraConfig
 import com.example.framegate.domain.model.CapturePlan
@@ -108,7 +109,7 @@ class CaptureViewModel(
     fun onEvent(event: CaptureUiEvent) {
         when (event) {
             is CaptureUiEvent.StartCapture -> startCapture()
-            is CaptureUiEvent.PauseCapture -> pauseCapture()
+            is CaptureUiEvent.StopCapture -> stopCapture()
             is CaptureUiEvent.CycleCameraConfig -> {
                 _cameraConfig.value = _cameraConfig.value.next()
                 recomputeOverlay()
@@ -132,6 +133,8 @@ class CaptureViewModel(
             isMirrored = frame.isMirrored,
             viewWidth = w.toFloat(),
             viewHeight = h.toFloat(),
+            // FIT encaja todo el buffer en la vista, así el recuadro del ROI se ve completo.
+            scaleMode = ScaleMode.FIT,
             normalizedRoi = step.roi,
         )
         val r = mapping.viewRect
@@ -229,12 +232,15 @@ class CaptureViewModel(
         is GatePhase.Complete -> "Plan completado"
     }
 
-    private fun pauseCapture() {
+    private fun stopCapture() {
+        // Detener para el loop y vuelve al inicio; Iniciar arranca de nuevo desde el primer paso.
         captureJob?.cancel()
         _gateState.value = GateState()
         _isCapturing.value = false
         _perf.value = PerfStats()
-        sendEffect(CaptureUiEffect.ShowToast("Loop de captura pausado"))
+        // Redibuja el overlay con el ROI del primer paso, coherente con el reinicio.
+        recomputeOverlay()
+        sendEffect(CaptureUiEffect.ShowToast("Loop de captura detenido"))
     }
 
     private fun sendEffect(effect: CaptureUiEffect) {

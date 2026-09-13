@@ -84,8 +84,8 @@ fun CaptureScreen(
                 Text("Iniciar Loop de Captura")
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = { viewModel.onEvent(CaptureUiEvent.PauseCapture) }) {
-                Text("Pausar Loop")
+            Button(onClick = { viewModel.onEvent(CaptureUiEvent.StopCapture) }) {
+                Text("Detener Loop")
             }
             Spacer(modifier = Modifier.height(8.dp))
             Button(onClick = { viewModel.onEvent(CaptureUiEvent.CycleCameraConfig) }) {
