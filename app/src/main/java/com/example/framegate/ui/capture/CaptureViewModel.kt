@@ -11,6 +11,7 @@ import com.example.framegate.domain.gate.GateState
 import com.example.framegate.domain.interfaces.FrameSource
 import com.example.framegate.domain.mapping.CoordinateMapper
 import com.example.framegate.domain.model.BufferRect
+import com.example.framegate.domain.model.CameraConfig
 import com.example.framegate.domain.model.CapturePlan
 import com.example.framegate.domain.model.CaptureStep
 import com.example.framegate.domain.model.FrameData
@@ -53,6 +54,7 @@ class CaptureViewModel(
     private val _isCapturing = MutableStateFlow(false)
     private val _perf = MutableStateFlow(PerfStats())
     private val _overlay = MutableStateFlow<OverlayRect?>(null)
+    private val _cameraConfig = MutableStateFlow(CameraConfig.ROT_0)
 
     private var viewSize: Pair<Int, Int>? = null
 
@@ -66,13 +68,17 @@ class CaptureViewModel(
     // Diagnósticos del plan ya parseado; estables en la sesión (no se re-parsea). Texto plano.
     private val planDiagnostics: List<String> = AppGraph.planDiagnostics.map { it.toString() }
 
+    // El overlay y la config de cámara se combinan aparte para no exceder los 5
+    // flujos del combine principal; ambos afectan a cómo se ve la vista.
+    private val overlayAndConfig = combine(_overlay, _cameraConfig) { overlay, config -> overlay to config }
+
     val uiState: StateFlow<CaptureUiState> = combine(
         _gateState,
         _lastMetrics,
         _isCapturing,
         _perf,
-        _overlay,
-    ) { gate, metrics, capturing, perf, overlay ->
+        overlayAndConfig,
+    ) { gate, metrics, capturing, perf, (overlay, config) ->
         CaptureUiState(
             gateStatusText = phaseText(gate.phase),
             currentStepIndex = gate.stepIndex,
@@ -84,6 +90,7 @@ class CaptureViewModel(
             droppedFrames = perf.dropped,
             overlayRect = overlay,
             planDiagnostics = planDiagnostics,
+            cameraConfigLabel = config.label,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -102,6 +109,10 @@ class CaptureViewModel(
         when (event) {
             is CaptureUiEvent.StartCapture -> startCapture()
             is CaptureUiEvent.PauseCapture -> pauseCapture()
+            is CaptureUiEvent.CycleCameraConfig -> {
+                _cameraConfig.value = _cameraConfig.value.next()
+                recomputeOverlay()
+            }
             is CaptureUiEvent.ViewSizeChanged -> {
                 viewSize = event.width to event.height
                 recomputeOverlay()
@@ -156,7 +167,12 @@ class CaptureViewModel(
             normalizedRoi = step.roi,
         ).bufferRect
 
-    private fun processFrame(frame: FrameData) {
+    private fun processFrame(rawFrame: FrameData) {
+        // Aplica la configuración de cámara activa al frame de la fixture (que no
+        // trae orientación), para ejercitar el mapeo en las 4 configuraciones.
+        val config = _cameraConfig.value
+        val frame = rawFrame.copy(sensorRotation = config.sensorRotation, isMirrored = config.isMirrored)
+
         // Guarda la geometría real del frame y reproyecta el overlay con ella.
         frameGeometry = frame
         recomputeOverlay()

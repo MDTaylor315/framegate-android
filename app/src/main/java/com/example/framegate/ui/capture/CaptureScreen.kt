@@ -87,6 +87,10 @@ fun CaptureScreen(
             Button(onClick = { viewModel.onEvent(CaptureUiEvent.PauseCapture) }) {
                 Text("Pausar Loop")
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = { viewModel.onEvent(CaptureUiEvent.CycleCameraConfig) }) {
+                Text("Cámara: ${uiState.cameraConfigLabel}")
+            }
         }
     }
 }

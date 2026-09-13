@@ -15,6 +15,8 @@ data class CaptureUiState(
     val overlayRect: OverlayRect? = null,
     // Diagnósticos del parseo del plan, ya formateados como texto plano.
     val planDiagnostics: List<String> = emptyList(),
+    // Etiqueta de la configuración de cámara activa (rotación/espejo).
+    val cameraConfigLabel: String = "0°",
 )
 
 /** Rectángulo en píxeles de pantalla, listo para dibujar (sin más cálculo en la UI). */
