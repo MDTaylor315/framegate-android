@@ -3,6 +3,8 @@ package com.example.framegate.domain.queue
 import com.example.framegate.domain.interfaces.Clock
 import com.example.framegate.domain.interfaces.UploadTransport
 import com.example.framegate.domain.model.UploadResult
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Drena la cola en serie aplicando el contrato del servidor: 201/409 = éxito,
@@ -20,7 +22,11 @@ class UploadEngine(
     // Tope de intentos, para que la UI pueda mostrar "intento N/max".
     val maxAttempts: Int get() = retryPolicy.maxAttempts
 
-    suspend fun drain() {
+    // Serializa el drenaje: aunque se invoque desde varios sitios (captura y Queue),
+    // solo una pasada procesa la cola a la vez, evitando enviar un item dos veces.
+    private val drainMutex = Mutex()
+
+    suspend fun drain() = drainMutex.withLock {
         for (item in store.getPending()) {
             processItem(item)
         }
